@@ -353,6 +353,12 @@ KKCT.conflicts = (() => {
             const cluster = members.slice(0, 12).map(i => allOccluders[i])
             const resNames = [...resSet]
             const anchor = cluster[0]
+            const centroid = [0, 0, 0]
+            for (const o of cluster) {
+                centroid[0] += o.c[0] / cluster.length
+                centroid[1] += o.c[1] / cluster.length
+                centroid[2] += o.c[2] / cluster.length
+            }
             const near = occlNeighbors(members[0])
                 .filter(oi => !members.includes(oi))
                 .map(oi => ({ label: `MODEL #${oi + 1}`, dist: Math.round(dist3(allOccluders[oi].c, anchor.c) * 10) / 10 }))
@@ -374,7 +380,7 @@ KKCT.conflicts = (() => {
                 file: [...new Set(cluster.map(o => o.file))].join(' + '),
                 badges,
                 vanilla: false,
-                pos: anchor.c,
+                pos: centroid.map(v => Math.round(v * 100) / 100),
                 autoRes: null,
                 resources: cluster.map((o, i) => ({ name: o.resource, rel: o.rel, size: 0, sha1: '', status: `occluder ${i + 1}` })),
                 entity: null,

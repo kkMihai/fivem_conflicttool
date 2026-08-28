@@ -16,7 +16,7 @@ local function drawLabel3d(x, y, z, text)
     DrawText(sx, sy)
 end
 
-local function drawOne(m, sel, xray)
+local function drawOne(m, sel, xray, withLabel)
     local a = sel and 220 or 130
     if xray then
         local onScreen, sx, sy = World3dToScreen2d(m.x, m.y, m.z)
@@ -29,7 +29,7 @@ local function drawOne(m, sel, xray)
         DrawMarker(28, m.x, m.y, m.z, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.35 * scale, 0.35 * scale, 0.35 * scale, m.r, m.g, m.b, a, false, false, 2, false, nil, nil, false)
         DrawLine(m.x, m.y, m.z - 40.0, m.x, m.y, m.z + 60.0, m.r, m.g, m.b, sel and 200 or 90)
     end
-    if sel and CT.selectedLabel then
+    if withLabel and CT.selectedLabel then
         drawLabel3d(m.x, m.y, m.z + 1.1, CT.selectedLabel)
     end
 end
@@ -59,12 +59,13 @@ CreateThread(function()
             local xray = CT.xray
             local drawn = 0
             if selected and not transforming then
+                local labeled = false
                 for i = 1, count do
                     local m = markers[i]
                     if m.id == selected then
-                        drawOne(m, true, xray)
-                        drawn = 1
-                        break
+                        drawOne(m, true, xray, not labeled)
+                        labeled = true
+                        drawn = drawn + 1
                     end
                 end
             end

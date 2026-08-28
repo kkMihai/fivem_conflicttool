@@ -470,7 +470,17 @@ export const useStore = create<StoreState>((set, get) => ({
             if (c) shown.push(c)
         }
         markerIds = new Set(shown.map(c => c.id))
-        const markers = shown.map(c => ({ id: c.id, x: c.pos![0], y: c.pos![1], z: c.pos![2], cat: c.cat, ci: catColorIdx(c) }))
+        const markers: { id: string; x: number; y: number; z: number; cat: Category; ci: number }[] = []
+        for (const c of shown) {
+            if (c.kind === 'occl-overlap' && c.boxes?.length) {
+                for (const b of c.boxes) {
+                    if (b.l === 0 && b.w === 0 && b.h === 0) continue
+                    markers.push({ id: c.id, x: b.c[0], y: b.c[1], z: b.c[2], cat: c.cat, ci: catColorIdx(c) })
+                }
+                continue
+            }
+            markers.push({ id: c.id, x: c.pos![0], y: c.pos![1], z: c.pos![2], cat: c.cat, ci: catColorIdx(c) })
+        }
         fetchNui('setMarkers', { markers, total: list.length })
     },
 
