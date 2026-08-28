@@ -103,19 +103,28 @@ local function pickMarker(origin, dir, range)
     return nil
 end
 
-local function slab(o, d, h, tmin, tmax)
-    if d > -0.000001 and d < 0.000001 then
-        if o < -h or o > h then return nil end
-        return tmin, tmax
+local function rayBox(o, d, h, range)
+    local tmin, tmax = 0.0, range
+    local axis, sign = nil, nil
+    for a = 1, 3 do
+        local da = d[a]
+        if da > -0.000001 and da < 0.000001 then
+            if o[a] < -h[a] or o[a] > h[a] then return nil end
+        else
+            local inv = 1.0 / da
+            local t1 = (-h[a] - o[a]) * inv
+            local t2 = (h[a] - o[a]) * inv
+            if t1 > t2 then t1, t2 = t2, t1 end
+            if t1 > tmin then
+                tmin = t1
+                axis = a
+                sign = da > 0 and -1 or 1
+            end
+            if t2 < tmax then tmax = t2 end
+            if tmin > tmax then return nil end
+        end
     end
-    local inv = 1.0 / d
-    local t1 = (-h - o) * inv
-    local t2 = (h - o) * inv
-    if t1 > t2 then t1, t2 = t2, t1 end
-    if t1 > tmin then tmin = t1 end
-    if t2 < tmax then tmax = t2 end
-    if tmin > tmax then return nil end
-    return tmin, tmax
+    return tmin, axis, sign
 end
 
 local function occlPick(origin, dir, range)
@@ -123,7 +132,7 @@ local function occlPick(origin, dir, range)
     if not (boxes and CT.selected and CT.showVisuals) then return nil end
     local ox, oy, oz = origin.x, origin.y, origin.z
     local dx, dy, dz = dir.x, dir.y, dir.z
-    local best, bestT = nil, nil
+    local best, bestT, bestAxis, bestSign = nil, nil, nil, nil
     for i = 1, #boxes do
         local b = boxes[i]
         local hl, hw, hh = (b.l or 0) / 2, (b.w or 0) / 2, (b.h or 0) / 2
@@ -140,19 +149,14 @@ local function occlPick(origin, dir, range)
             local ly = -px * si + py * co
             local ldx = dx * co + dy * si
             local ldy = -dx * si + dy * co
-            local tmin, tmax = slab(lx, ldx, hl, 0.0, range)
-            if tmin then
-                tmin, tmax = slab(ly, ldy, hw, tmin, tmax)
-                if tmin then
-                    tmin, tmax = slab(pz, dz, hh, tmin, tmax)
-                    if tmin and (bestT == nil or tmin < bestT) then
-                        best, bestT = i, tmin
-                    end
-                end
+            local t, axis, sign = rayBox({ lx, ly, pz }, { ldx, ldy, dz }, { hl, hw, hh }, range)
+            if t and (bestT == nil or t < bestT) then
+                best, bestT = i, t
+                bestAxis, bestSign = axis, sign
             end
         end
     end
-    return best, bestT
+    return best, bestT, bestAxis, bestSign
 end
 
 local function probe()
@@ -193,7 +197,16 @@ function PK.Click()
 end
 
 function PK.Context()
-    if not CT.open or CT.mode == 'transform' or not CT.picking then return end
+    if not CT.open or not CT.picking then return end
+    if CT.OcclEdit.active then
+        local origin, dir = camRay()
+        local index, _, axis, sign = occlPick(origin, dir, 400.0)
+        if index and axis then
+            CT.OcclEdit.PickFace(index - 1, axis, sign)
+        end
+        return
+    end
+    if CT.mode == 'transform' then return end
     local marker, _, markerT, origin, dir, range = probe()
     local boxIndex, boxT = occlPick(origin, dir, range)
     local id, bx = nil, nil

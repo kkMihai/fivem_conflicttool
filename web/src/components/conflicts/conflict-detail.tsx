@@ -34,6 +34,7 @@ export function ConflictDetail() {
     const occlEditLive = useStore(s => s.occlEditLive)
     const occlEditApply = useStore(s => s.occlEditApply)
     const occlEditCancel = useStore(s => s.occlEditCancel)
+    const occlEditWholeBox = useStore(s => s.occlEditWholeBox)
     const preview = useStore(s => s.preview)
     const setPreview = useStore(s => s.setPreview)
     const c = conflicts.find(x => x.id === selectedId)
@@ -209,16 +210,36 @@ export function ConflictDetail() {
                                         </span>
                                     </div>
                                     {editing ? (
-                                        <div className="mt-1 grid grid-cols-2 gap-1">
-                                            <Button size="sm" onClick={() => occlEditApply()} aria-label={`Apply the edit of occluder ${i + 1}`}>
-                                                <Check />
-                                                Apply edit
-                                            </Button>
-                                            <Button size="sm" variant="secondary" onClick={() => occlEditCancel()} aria-label={`Cancel the edit of occluder ${i + 1}`}>
-                                                <X />
-                                                Cancel
-                                            </Button>
-                                        </div>
+                                        <>
+                                            <div className="mt-1 flex items-center gap-1.5 rounded-md border border-border bg-background px-1.5 py-1 text-3xs">
+                                                {occlEditLive?.face ? (
+                                                    <>
+                                                        <span className="text-muted-foreground">
+                                                            extruding the <span className="font-semibold text-foreground">{occlEditLive.face}</span> face
+                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => occlEditWholeBox()}
+                                                            className="ml-auto min-h-6 shrink-0 rounded-sm px-1 text-3xs font-semibold text-muted-foreground transition-colors duration-150 hover:text-foreground cursor-pointer"
+                                                        >
+                                                            whole box
+                                                        </button>
+                                                    </>
+                                                ) : (
+                                                    <span className="text-muted-foreground">right click a face in world to extrude just that side</span>
+                                                )}
+                                            </div>
+                                            <div className="mt-1 grid grid-cols-2 gap-1">
+                                                <Button size="sm" onClick={() => occlEditApply()} aria-label={`Apply the edit of occluder ${i + 1}`}>
+                                                    <Check />
+                                                    Apply edit
+                                                </Button>
+                                                <Button size="sm" variant="secondary" onClick={() => occlEditCancel()} aria-label={`Cancel the edit of occluder ${i + 1}`}>
+                                                    <X />
+                                                    Cancel
+                                                </Button>
+                                            </div>
+                                        </>
                                     ) : (
                                         <div className="mt-1 grid grid-cols-3 gap-1">
                                             <Button

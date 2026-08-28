@@ -197,7 +197,7 @@ export default function App() {
         }
     })
 
-    useNuiEvent<{ l: number; w: number; h: number }>('occlEditLive', d => {
+    useNuiEvent<{ l: number; w: number; h: number; face?: string | null }>('occlEditLive', d => {
         if (useStore.getState().occlEdit) useStore.setState({ occlEditLive: d })
     })
 
@@ -365,6 +365,10 @@ export default function App() {
                             <span className="flex items-center gap-1.5">
                                 <Kbd>4</Kbd>
                                 <span>resize</span>
+                            </span>
+                            <span className="flex items-center gap-1.5">
+                                <Kbd>RMB</Kbd>
+                                <span>tap a face to extrude</span>
                             </span>
                             <span className="flex items-center gap-1.5">
                                 <Kbd>Enter</Kbd>

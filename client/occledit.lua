@@ -1,4 +1,4 @@
-CT.OcclEdit = { active = false }
+CT.OcclEdit = { active = false, face = nil, vizIndex = nil }
 
 local OE = CT.OcclEdit
 local data = nil
@@ -6,13 +6,21 @@ local orig = nil
 local cur = nil
 local dragActive = false
 local session = 0
+local MIN_SIZE = 0.5
+
+local SIZE_KEY = { 'l', 'w', 'h' }
+local FACE_NAME = {
+    { [1] = 'right', [-1] = 'left' },
+    { [1] = 'front', [-1] = 'back' },
+    { [1] = 'top', [-1] = 'bottom' }
+}
 
 local function round3(v)
     return math.floor(v * 1000 + 0.5) / 1000
 end
 
 local function clampSize(v)
-    return math.max(0.5, math.min(2000.0, v))
+    return math.max(MIN_SIZE, math.min(2000.0, v))
 end
 
 local function clampPos(v)
@@ -43,6 +51,57 @@ local function readMatrix(view)
     cur.c[1], cur.c[2], cur.c[3] = clampPos(tx), clampPos(ty), clampPos(tz)
 end
 
+function OE.ExtrudeSpan(size, sign, p)
+    local h = size / 2
+    local lo, hi = -h, h
+    if sign > 0 then hi = p else lo = p end
+    if hi - lo < MIN_SIZE then
+        if sign > 0 then hi = lo + MIN_SIZE else lo = hi - MIN_SIZE end
+    end
+    return hi - lo, (lo + hi) / 2
+end
+
+local function toWorld(lx, ly, lz)
+    return cur.c[1] + lx * cur.cz - ly * cur.sz,
+        cur.c[2] + lx * cur.sz + ly * cur.cz,
+        cur.c[3] + lz
+end
+
+local function faceOffsets(value)
+    local ax = OE.face.axis
+    if ax == 1 then return value, 0.0, 0.0 end
+    if ax == 2 then return 0.0, value, 0.0 end
+    return 0.0, 0.0, value
+end
+
+local function makeFaceMatrix()
+    local ax = OE.face.axis
+    local lx, ly, lz = faceOffsets(OE.face.sign * (cur[SIZE_KEY[ax]] / 2))
+    local tx, ty, tz = toWorld(lx, ly, lz)
+    local view = DataView.ArrayBuffer(64)
+    view:SetFloat32(0, cur.cz):SetFloat32(4, cur.sz):SetFloat32(8, 0.0):SetFloat32(12, 0.0)
+    view:SetFloat32(16, -cur.sz):SetFloat32(20, cur.cz):SetFloat32(24, 0.0):SetFloat32(28, 0.0)
+    view:SetFloat32(32, 0.0):SetFloat32(36, 0.0):SetFloat32(40, 1.0):SetFloat32(44, 0.0)
+    view:SetFloat32(48, tx):SetFloat32(52, ty):SetFloat32(56, tz):SetFloat32(60, 1.0)
+    return view
+end
+
+local function readFaceMatrix(view)
+    local ax = OE.face.axis
+    local key = SIZE_KEY[ax]
+    local tx, ty, tz = view:GetFloat32(48), view:GetFloat32(52), view:GetFloat32(56)
+    local dx, dy = tx - cur.c[1], ty - cur.c[2]
+    local lx = dx * cur.cz + dy * cur.sz
+    local ly = -dx * cur.sz + dy * cur.cz
+    local lz = tz - cur.c[3]
+    local p = ax == 1 and lx or (ax == 2 and ly or lz)
+    local size, offset = OE.ExtrudeSpan(cur[key], OE.face.sign, p)
+    local ox, oy, oz = faceOffsets(offset)
+    local cx, cy, cz0 = toWorld(ox, oy, oz)
+    cur[key] = clampSize(size)
+    cur.c[1], cur.c[2], cur.c[3] = clampPos(cx), clampPos(cy), clampPos(cz0)
+end
+
 local function vizBox()
     local occl = CT.CollisionViz.occl
     if not (data and occl) then return nil end
@@ -55,6 +114,33 @@ local function writeViz(v)
     b.c = { v.c[1], v.c[2], v.c[3] }
     b.l, b.w, b.h = v.l, v.w, v.h
     b.cz, b.sz = v.cz, v.sz
+end
+
+function OE.Emit()
+    if not (OE.active and cur) then return end
+    local face = OE.face
+    CT.NuiSend('occlEditLive', {
+        l = round3(cur.l),
+        w = round3(cur.w),
+        h = round3(cur.h),
+        face = face and FACE_NAME[face.axis][face.sign] or nil
+    })
+end
+
+function OE.PickFace(boxIndex, axis, sign)
+    if not (OE.active and data and axis) then return end
+    if boxIndex ~= data.target then return end
+    OE.face = { axis = axis, sign = sign }
+    CT.Gizmo.mode = 'translate'
+    CT.Gizmo.pendingMode = 'translate'
+    CT.NuiSend('gizmoMode', 'translate')
+    OE.Emit()
+end
+
+function OE.ClearFace()
+    if not OE.face then return end
+    OE.face = nil
+    OE.Emit()
 end
 
 function OE.DragStart()
@@ -106,6 +192,8 @@ function OE.Start(d)
     orig = { c = { box.c[1], box.c[2], box.c[3] }, l = box.l, w = box.w, h = box.h, cz = cz, sz = sz }
     cur = { c = { box.c[1], box.c[2], box.c[3] }, l = clampSize(box.l or 1.0), w = clampSize(box.w or 1.0), h = clampSize(box.h or 1.0), cz = cz, sz = sz }
     OE.active = true
+    OE.face = nil
+    OE.vizIndex = d.target + 1
     CT.mode = 'transform'
     if CT.Gizmo.mode == 'scale' then
         CT.Gizmo.mode = 'translate'
@@ -122,16 +210,21 @@ function OE.Start(d)
             DisableControlAction(0, 25, true)
             DisableControlAction(0, 140, true)
             DisablePlayerFiring(PlayerId(), true)
-            local view = makeMatrix()
+            local face = OE.face
+            local view = face and makeFaceMatrix() or makeMatrix()
             local changed = Citizen.InvokeNative(0xEB2EDCA2, view:Buffer(), 'kk_ct_occl', Citizen.ReturnResultAnyway())
             if changed then
-                readMatrix(view)
+                if face then
+                    readFaceMatrix(view)
+                else
+                    readMatrix(view)
+                end
                 writeViz(cur)
             end
             local now = GetGameTimer()
             if now - emitAt > 100 then
                 emitAt = now
-                CT.NuiSend('occlEditLive', { l = round3(cur.l), w = round3(cur.w), h = round3(cur.h) })
+                OE.Emit()
             end
         end
     end)
@@ -157,6 +250,8 @@ end
 function OE.Stop(restore)
     if not OE.active then return end
     OE.active = false
+    OE.face = nil
+    OE.vizIndex = nil
     session = session + 1
     CT.mode = 'browse'
     OE.DragStop()

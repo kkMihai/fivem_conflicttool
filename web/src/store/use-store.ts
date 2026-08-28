@@ -64,13 +64,14 @@ interface StoreState {
     mergeOccluders: (c: Conflict) => void
     zeroOccluder: (c: Conflict, target: number) => void
     occlEdit: { id: string; target: number } | null
-    occlEditLive: { l: number; w: number; h: number } | null
+    occlEditLive: { l: number; w: number; h: number; face?: string | null } | null
     ctxMenu: { id: string; bx: number | null; x: number; y: number } | null
     openCtxMenu: (d: { id: string; bx: number | null; x: number; y: number }) => void
     closeCtxMenu: () => void
     editOccluder: (c: Conflict, target: number) => Promise<void>
     occlEditApply: () => void
     occlEditCancel: () => void
+    occlEditWholeBox: () => void
     toggleChecked: (id: string, shift?: boolean) => void
     clearChecked: () => void
     bulkIgnore: (on: boolean) => void
@@ -243,6 +244,14 @@ export const useStore = create<StoreState>((set, get) => ({
             return
         }
         fetchNui('occlEditCancel')
+    },
+
+    occlEditWholeBox: () => {
+        if (isEnvBrowser()) {
+            set(s => ({ occlEditLive: s.occlEditLive ? { ...s.occlEditLive, face: null } : null }))
+            return
+        }
+        fetchNui('occlEditWholeBox')
     },
 
     toggleExt: ext => {

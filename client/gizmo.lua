@@ -52,6 +52,7 @@ RegisterCommand('+kkctGizmoTranslate', function()
         return
     end
     GZ.mode = 'translate'
+    if CT.OcclEdit.active then CT.OcclEdit.ClearFace() end
     applyModeNow('translate')
     SendNUIMessage({ action = 'gizmoMode', data = 'translate' })
 end, false)
@@ -67,6 +68,7 @@ RegisterCommand('+kkctGizmoRotate', function()
         return
     end
     GZ.mode = 'rotate'
+    if CT.OcclEdit.active then CT.OcclEdit.ClearFace() end
     applyModeNow('rotate')
     SendNUIMessage({ action = 'gizmoMode', data = 'rotate' })
 end, false)
@@ -79,6 +81,7 @@ RegisterCommand('+kkctGizmoScale', function()
     if not CT.open or CT.typing then return end
     if not CT.OcclEdit.active then return end
     GZ.mode = 'scale'
+    if CT.OcclEdit.active then CT.OcclEdit.ClearFace() end
     applyModeNow('scale')
     SendNUIMessage({ action = 'gizmoMode', data = 'scale' })
 end, false)

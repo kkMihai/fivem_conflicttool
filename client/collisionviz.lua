@@ -156,6 +156,22 @@ local function drawOcclBox(b, idx)
     for _, e in ipairs(edges) do
         DrawLine(e[1][1], e[1][2], e[1][3], e[2][1], e[2][2], e[2][3], cr, cg, cb, 200)
     end
+    local oe = CT.OcclEdit
+    if oe.active and oe.face and idx == oe.vizIndex then
+        local ax, sg = oe.face.axis, oe.face.sign
+        local f1, f2, f3, f4
+        if ax == 1 then
+            f1, f2, f3, f4 = corner(sg, -1, -1), corner(sg, 1, -1), corner(sg, 1, 1), corner(sg, -1, 1)
+        elseif ax == 2 then
+            f1, f2, f3, f4 = corner(-1, sg, -1), corner(1, sg, -1), corner(1, sg, 1), corner(-1, sg, 1)
+        else
+            f1, f2, f3, f4 = corner(-1, -1, sg), corner(1, -1, sg), corner(1, 1, sg), corner(-1, 1, sg)
+        end
+        quadBoth(f1, f2, f3, f4, 255, 255, 255, 110)
+        for _, e in ipairs({ { f1, f2 }, { f2, f3 }, { f3, f4 }, { f4, f1 } }) do
+            DrawLine(e[1][1], e[1][2], e[1][3], e[2][1], e[2][2], e[2][3], 255, 255, 255, 255)
+        end
+    end
 end
 
 function CV.HasContent()

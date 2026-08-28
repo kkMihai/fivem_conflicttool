@@ -187,6 +187,11 @@ RegisterNUICallback('occlEditCancel', function(_, cb)
     CT.OcclEdit.Stop(true)
 end)
 
+RegisterNUICallback('occlEditWholeBox', function(_, cb)
+    cb(true)
+    CT.OcclEdit.ClearFace()
+end)
+
 RegisterNUICallback('ignoreConflict', function(data, cb)
     cb(true)
     if data and (data.key or data.items) then
