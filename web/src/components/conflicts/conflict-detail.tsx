@@ -180,7 +180,7 @@ export function ConflictDetail() {
                         <Button
                             variant="secondary"
                             className="w-full justify-start"
-                            disabled={!!resolved[c.id] || !c.boxes![0]?.rel || !c.boxes![1]?.rel}
+                            disabled={c.boxes!.filter(b => b?.rel && !(b.l === 0 && b.w === 0 && b.h === 0)).length < 2}
                             onClick={() => mergeOccluders(c)}
                             title="Grow one occluder to cover both volumes and zero the other"
                         >
@@ -189,7 +189,7 @@ export function ConflictDetail() {
                         </Button>
                         {c.boxes!.map((box, i) => {
                             const gone = !!box && box.l === 0 && box.w === 0 && box.h === 0
-                            const locked = !!resolved[c.id] || !box?.rel || gone
+                            const locked = !box?.rel || gone
                             return (
                                 <div key={i} className="rounded-md border border-border bg-card px-2 py-1.5">
                                     <div className="flex items-center gap-1.5 text-2xs">

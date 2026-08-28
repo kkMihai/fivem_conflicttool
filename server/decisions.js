@@ -82,7 +82,7 @@ KKCT.decisions = (() => {
             createdAt: new Date().toISOString(),
             by: d.by || null
         }
-        data.assets = data.assets.filter(a => !(a.file === rec.file && a.action === rec.action && a.loser && rec.loser && a.loser.resource === rec.loser.resource && a.state === 'pending'))
+        data.assets = data.assets.filter(a => !(a.file === rec.file && a.action === rec.action && a.loser && rec.loser && a.loser.resource === rec.loser.resource && a.state === 'pending' && (rec.action !== 'clip' || (a.box && rec.box && a.box.index === rec.box.index))))
         data.assets.push(rec)
         journal.push({ kind: 'asset', id, group: d.group || null })
         save()
