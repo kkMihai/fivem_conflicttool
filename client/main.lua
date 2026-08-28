@@ -126,9 +126,28 @@ end, false)
 
 RegisterKeyMapping('+kkctPrimary', 'Conflict tool: select object / drag gizmo', 'MOUSE_BUTTON', 'MOUSE_LEFT')
 
+local lookAt = 0
+local lookYaw, lookPitch = 0.0, 0.0
+
+local function camAngles()
+    if CT.Freecam.active then
+        return CT.Freecam.rot.z, CT.Freecam.rot.x
+    end
+    local r = GetGameplayCamRot(2)
+    return r.z, r.x
+end
+
+local function angleDelta(a, b)
+    local d = (a - b) % 360.0
+    if d > 180.0 then d = 360.0 - d end
+    return d
+end
+
 RegisterCommand('+kkctLook', function()
     if not CT.open or CT.typing or CT.overUi then return end
     CT.Gizmo.FlushMode()
+    lookAt = GetGameTimer()
+    lookYaw, lookPitch = camAngles()
     CT.camLook = true
     CT.ApplyFocus()
 end, false)
@@ -137,6 +156,10 @@ RegisterCommand('-kkctLook', function()
     if not CT.camLook then return end
     CT.camLook = false
     CT.ApplyFocus()
+    local yaw, pitch = camAngles()
+    if GetGameTimer() - lookAt < 260 and angleDelta(yaw, lookYaw) < 2.0 and angleDelta(pitch, lookPitch) < 2.0 then
+        CT.Picking.Context()
+    end
 end, false)
 
 RegisterKeyMapping('+kkctLook', 'Conflict tool: hold to look around', 'MOUSE_BUTTON', 'MOUSE_RIGHT')

@@ -25,3 +25,5 @@ export function fmtBytes(n: number): string {
     if (n < 1048576) return `${(n / 1024).toFixed(1)} KB`
     return `${(n / 1048576).toFixed(1)} MB`
 }
+
+export const OCCL_DOTS = ['bg-res-a', 'bg-res-b', 'bg-cat-vanilla', 'bg-cat-occl', 'bg-cat-coll']

@@ -8,6 +8,7 @@ import { WeightsDialog } from '@/components/dialogs/weights-dialog'
 import { ApplyModal } from '@/components/dialogs/apply-modal'
 import { ScanProgress } from '@/components/overlay/scan-progress'
 import { Legend } from '@/components/overlay/legend'
+import { ContextMenu } from '@/components/overlay/context-menu'
 import { Kbd } from '@/components/ui/kbd'
 import { decodeChunks, fetchNui, isEnvBrowser, useNuiEvent } from '@/lib/nui'
 import { useStore } from '@/store/use-store'
@@ -152,6 +153,14 @@ export default function App() {
 
     useNuiEvent<{ id: string }>('worldSelect', d => useStore.getState().select(d.id, false))
 
+    useNuiEvent<{ id: string; bx?: number; x: number; y: number }>('worldContext', d => {
+        const s = useStore.getState()
+        if (s.selectedId !== d.id) s.select(d.id, false)
+        s.openCtxMenu({ id: d.id, bx: d.bx ?? null, x: d.x, y: d.y })
+    })
+
+    useNuiEvent('closeContext', () => useStore.getState().closeCtxMenu())
+
     useNuiEvent<{ model?: number; id?: string } | null>('hoverInfo', d =>
         useStore.setState({ hoverModel: d?.model ?? null, hoverId: d?.id ?? null })
     )
@@ -236,7 +245,11 @@ export default function App() {
             const inDialog = !!target?.closest?.('[role="dialog"]')
             const onControl = !!target && target !== document.body && target !== document.documentElement
             if (e.key === 'Escape') {
-                if (useStore.getState().transform) {
+                if (useStore.getState().ctxMenu) {
+                    useStore.getState().closeCtxMenu()
+                } else if (useStore.getState().occlEdit) {
+                    useStore.getState().occlEditCancel()
+                } else if (useStore.getState().transform) {
                     useStore.getState().endMove(false)
                 } else {
                     fetchNui('close')
@@ -373,12 +386,17 @@ export default function App() {
                                     <Kbd>LMB</Kbd>
                                     <span>select in world</span>
                                 </span>
+                                <span className="flex items-center gap-1.5">
+                                    <Kbd>RMB</Kbd>
+                                    <span>tap for actions</span>
+                                </span>
                             </div>
                             <Toolbar />
                         </div>
                     )}
                 </div>
             </div>
+            <ContextMenu />
             <ConflictDetail />
             <Dock />
             <BackupsDialog />

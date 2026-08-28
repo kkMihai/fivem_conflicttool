@@ -62,6 +62,9 @@ interface StoreState {
     zeroOccluder: (c: Conflict, target: number) => void
     occlEdit: { id: string; target: number } | null
     occlEditLive: { l: number; w: number; h: number } | null
+    ctxMenu: { id: string; bx: number | null; x: number; y: number } | null
+    openCtxMenu: (d: { id: string; bx: number | null; x: number; y: number }) => void
+    closeCtxMenu: () => void
     editOccluder: (c: Conflict, target: number) => Promise<void>
     occlEditApply: () => void
     occlEditCancel: () => void
@@ -201,6 +204,11 @@ export const useStore = create<StoreState>((set, get) => ({
 
     occlEdit: null,
     occlEditLive: null,
+    ctxMenu: null,
+
+    openCtxMenu: d => set({ ctxMenu: d }),
+
+    closeCtxMenu: () => set({ ctxMenu: null }),
 
     editOccluder: async (c, target) => {
         const boxes = c.boxes
@@ -342,7 +350,7 @@ export const useStore = create<StoreState>((set, get) => ({
         if (get().preview) {
             fetchNui('previewEntity', { op: 'reset' })
         }
-        set({ selectedId: id, preview: null })
+        set({ selectedId: id, preview: null, ctxMenu: null })
         if (!id) {
             fetchNui('selectConflict', { id: null })
             fetchNui('collisionBox', { on: false })
@@ -509,13 +517,13 @@ export const useStore = create<StoreState>((set, get) => ({
             if (c) shown.push(c)
         }
         markerIds = new Set(shown.map(c => c.id))
-        const markers: { id: string; x: number; y: number; z: number; cat: Category; ci: number }[] = []
+        const markers: { id: string; x: number; y: number; z: number; cat: Category; ci: number; bx?: number }[] = []
         for (const c of shown) {
             if (c.kind === 'occl-overlap' && c.boxes?.length) {
-                for (const b of c.boxes) {
-                    if (b.l === 0 && b.w === 0 && b.h === 0) continue
-                    markers.push({ id: c.id, x: b.c[0], y: b.c[1], z: b.c[2], cat: c.cat, ci: catColorIdx(c) })
-                }
+                c.boxes.forEach((b, bx) => {
+                    if (b.l === 0 && b.w === 0 && b.h === 0) return
+                    markers.push({ id: c.id, x: b.c[0], y: b.c[1], z: b.c[2], cat: c.cat, ci: catColorIdx(c), bx })
+                })
                 continue
             }
             markers.push({ id: c.id, x: c.pos![0], y: c.pos![1], z: c.pos![2], cat: c.cat, ci: catColorIdx(c) })

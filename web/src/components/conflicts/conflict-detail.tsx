@@ -1,5 +1,5 @@
 import { ArrowsOutCardinal, Check, Crosshair, Cube, Eye, EyeSlash, Swap, Trash, Warning, X } from '@phosphor-icons/react'
-import { cn } from '@/lib/utils'
+import { cn, OCCL_DOTS } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useStore } from '@/store/use-store'
@@ -8,8 +8,6 @@ import { fmtBytes } from '@/lib/utils'
 
 const catLabel: Record<string, string> = { asset: 'Asset', prop: 'Prop', occl: 'Occluder', coll: 'Collision' }
 const sevLabel: Record<string, string> = { cosmetic: 'Cosmetic', medium: 'Medium', high: 'High' }
-
-const OCCL_DOTS = ['bg-res-a', 'bg-res-b', 'bg-cat-vanilla', 'bg-cat-occl', 'bg-cat-coll']
 
 const previewLabels: Record<string, [string, string]> = {
     'spatial-dup': ['Both copies', 'Without copy'],

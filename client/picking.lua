@@ -62,7 +62,7 @@ local function pointPick(ox, oy, oz, dx, dy, dz, range)
             end
         end
     end
-    return best
+    return best, bestT
 end
 
 local function beamPick(ox, oy, oz, dx, dy, dz, range)
@@ -88,19 +88,71 @@ local function beamPick(ox, oy, oz, dx, dy, dz, range)
             end
         end
     end
-    return best
+    return best, bestT
 end
 
 local function pickMarker(origin, dir, range)
     if CT.markerCount == 0 then return nil end
     local ox, oy, oz = origin.x, origin.y, origin.z
     local dx, dy, dz = dir.x, dir.y, dir.z
-    local m = pointPick(ox, oy, oz, dx, dy, dz, range)
-    if m then return m end
+    local m, t = pointPick(ox, oy, oz, dx, dy, dz, range)
+    if m then return m, t end
     if CT.showVisuals and not CT.xray then
         return beamPick(ox, oy, oz, dx, dy, dz, range)
     end
     return nil
+end
+
+local function slab(o, d, h, tmin, tmax)
+    if d > -0.000001 and d < 0.000001 then
+        if o < -h or o > h then return nil end
+        return tmin, tmax
+    end
+    local inv = 1.0 / d
+    local t1 = (-h - o) * inv
+    local t2 = (h - o) * inv
+    if t1 > t2 then t1, t2 = t2, t1 end
+    if t1 > tmin then tmin = t1 end
+    if t2 < tmax then tmax = t2 end
+    if tmin > tmax then return nil end
+    return tmin, tmax
+end
+
+local function occlPick(origin, dir, range)
+    local boxes = CT.CollisionViz.occl
+    if not (boxes and CT.selected and CT.showVisuals) then return nil end
+    local ox, oy, oz = origin.x, origin.y, origin.z
+    local dx, dy, dz = dir.x, dir.y, dir.z
+    local best, bestT = nil, nil
+    for i = 1, #boxes do
+        local b = boxes[i]
+        local hl, hw, hh = (b.l or 0) / 2, (b.w or 0) / 2, (b.h or 0) / 2
+        if hl > 0.01 and hw > 0.01 and hh > 0.01 then
+            local co, si = b.cz or 1.0, b.sz or 0.0
+            local len = math.sqrt(co * co + si * si)
+            if len > 0.001 then
+                co, si = co / len, si / len
+            else
+                co, si = 1.0, 0.0
+            end
+            local px, py, pz = ox - b.c[1], oy - b.c[2], oz - b.c[3]
+            local lx = px * co + py * si
+            local ly = -px * si + py * co
+            local ldx = dx * co + dy * si
+            local ldy = -dx * si + dy * co
+            local tmin, tmax = slab(lx, ldx, hl, 0.0, range)
+            if tmin then
+                tmin, tmax = slab(ly, ldy, hw, tmin, tmax)
+                if tmin then
+                    tmin, tmax = slab(pz, dz, hh, tmin, tmax)
+                    if tmin and (bestT == nil or tmin < bestT) then
+                        best, bestT = i, tmin
+                    end
+                end
+            end
+        end
+    end
+    return best, bestT
 end
 
 local function probe()
@@ -116,7 +168,16 @@ local function probe()
             range = #(coords - origin) + 6.0
         end
     end
-    return pickMarker(origin, dir, range), model
+    local marker, markerT = pickMarker(origin, dir, range)
+    return marker, model, markerT, origin, dir, range
+end
+
+local function cursorNorm()
+    if CT.camLook or CT.uiW <= 0 or CT.uiH <= 0 then
+        return 0.5, 0.5
+    end
+    local mx, my = GetNuiCursorPosition()
+    return mx / CT.uiW, my / CT.uiH
 end
 
 function PK.Click()
@@ -126,13 +187,27 @@ function PK.Click()
         SendNUIMessage({ action = 'worldSelect', data = { id = target.id, model = model ~= 0 and model or nil } })
         return
     end
+    SendNUIMessage({ action = 'closeContext' })
     CT.missAt = GetGameTimer()
-    if CT.camLook or CT.uiW <= 0 or CT.uiH <= 0 then
-        CT.missX, CT.missY = 0.5, 0.5
-    else
-        local mx, my = GetNuiCursorPosition()
-        CT.missX, CT.missY = mx / CT.uiW, my / CT.uiH
+    CT.missX, CT.missY = cursorNorm()
+end
+
+function PK.Context()
+    if not CT.open or CT.mode == 'transform' or not CT.picking then return end
+    local marker, _, markerT, origin, dir, range = probe()
+    local boxIndex, boxT = occlPick(origin, dir, range)
+    local id, bx = nil, nil
+    if boxIndex and (not marker or not markerT or boxT <= markerT) then
+        id, bx = CT.selected, boxIndex - 1
+    elseif marker then
+        id, bx = marker.id, marker.bx
     end
+    if not id then
+        SendNUIMessage({ action = 'closeContext' })
+        return
+    end
+    local cx, cy = cursorNorm()
+    SendNUIMessage({ action = 'worldContext', data = { id = id, bx = bx, x = cx, y = cy } })
 end
 
 CreateThread(function()
