@@ -15,6 +15,7 @@ interface StoreState {
     scanProgress: { phase: string; resource: string; current: number; total: number } | null
     conflicts: Conflict[]
     resolved: Record<string, string>
+    notice: string | null
     tab: Tab
     search: string
     showVanilla: boolean
@@ -45,6 +46,7 @@ interface StoreState {
     toggleCollViz: () => void
     setVisible: (v: boolean) => void
     setConflicts: (c: Conflict[]) => void
+    setNotice: (msg: string | null) => void
     setTab: (t: Tab) => void
     setSearch: (s: string) => void
     setShowVanilla: (v: boolean) => void
@@ -73,6 +75,7 @@ interface StoreState {
 const catColorIdx = (c: Conflict): number => (c.vanilla ? 2 : 0)
 
 let markerIds = new Set<string>()
+let noticeTimer: ReturnType<typeof setTimeout> | null = null
 
 export const useStore = create<StoreState>((set, get) => ({
     visible: isEnvBrowser(),
@@ -86,6 +89,7 @@ export const useStore = create<StoreState>((set, get) => ({
     scanProgress: null,
     conflicts: isEnvBrowser() ? mockConflicts : [],
     resolved: {},
+    notice: null,
     tab: 'all',
     search: '',
     showVanilla: true,
@@ -339,33 +343,43 @@ export const useStore = create<StoreState>((set, get) => ({
         get().pushHistory({ id: c.id, label: c.file, action: `keep ${keeper}` })
     },
 
+    setNotice: msg => {
+        if (noticeTimer) clearTimeout(noticeTimer)
+        set({ notice: msg })
+        if (msg) {
+            noticeTimer = setTimeout(() => set({ notice: null }), 7000)
+        }
+    },
+
     startMove: async c => {
         if (!c.entity) return
         if (get().preview) {
             fetchNui('previewEntity', { op: 'reset' })
             set({ preview: null })
         }
-        const ok = await fetchNui<boolean>('startTransform', {
+        const res = await fetchNui<{ ok?: boolean; reason?: string }>('startTransform', {
             model: c.entity.model,
             pos: c.entity.pos,
             rot: c.entity.rot,
             radius: c.entity.radius,
             newPos: c.target?.pos ?? null
         })
-        if (ok !== false) {
-            set({
-                transform: {
-                    conflictId: c.id,
-                    model: c.entity.model,
-                    name: c.entity.name,
-                    pos: c.entity.pos,
-                    rot: [0, 0, 0],
-                    quat: c.entity.rot,
-                    mode: 'translate',
-                    grid: false
-                }
-            })
+        if (res && res.ok === false) {
+            if (res.reason) get().setNotice(res.reason)
+            return
         }
+        set({
+            transform: {
+                conflictId: c.id,
+                model: c.entity.model,
+                name: c.entity.name,
+                pos: c.entity.pos,
+                rot: [0, 0, 0],
+                quat: c.entity.rot,
+                mode: 'translate',
+                grid: false
+            }
+        })
     },
 
     endMove: async commit => {

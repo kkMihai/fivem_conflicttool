@@ -149,12 +149,15 @@ function GZ.Start(entity)
     GZ.pendingMode = GZ.mode
     CT.mode = 'transform'
     SetEntityDrawOutline(entity, true)
-    if GZ.supported == nil then
+    if not GZ.supported then
         local ok, res = pcall(function()
             local view = makeEntityMatrix(entity)
             return Citizen.InvokeNative(0xEB2EDCA2, view:Buffer(), 'kk_ct_gizmo_probe', Citizen.ReturnResultAnyway())
         end)
         GZ.supported = ok and res ~= nil
+        if not GZ.supported then
+            SendNUIMessage({ action = 'notice', data = 'Gizmo native is unavailable, use the numeric inputs to move this object.' })
+        end
     end
     CreateThread(function()
         local emitAt = 0
@@ -183,6 +186,12 @@ function GZ.Start(entity)
         end
         if DoesEntityExist(entity) then
             SetEntityDrawOutline(entity, false)
+        end
+        if GZ.active and GZ.entity == entity then
+            GZ.Stop(false)
+            CT.Preview.Reset()
+            CT.ApplyFocus()
+            SendNUIMessage({ action = 'gizmoLost' })
         end
     end)
 end

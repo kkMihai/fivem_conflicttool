@@ -74,7 +74,11 @@ end)
 
 RegisterNUICallback('startTransform', function(data, cb)
     if not (data and data.model and data.pos) then
-        cb(false)
+        cb({ ok = false, reason = 'This conflict has no object to move.' })
+        return
+    end
+    if not IsModelValid(data.model) then
+        cb({ ok = false, reason = 'This model is not streamable, so it cannot be moved in game. Resolve it at file level instead.' })
         return
     end
     CreateThread(function()
@@ -85,10 +89,10 @@ RegisterNUICallback('startTransform', function(data, cb)
             CT.typing = false
             CT.Gizmo.Start(ghost)
             CT.ApplyFocus()
-            cb(true)
+            cb({ ok = true })
         else
             CT.Preview.Reset()
-            cb(false)
+            cb({ ok = false, reason = 'This model failed to load, so it cannot be moved in game. Resolve it at file level instead.' })
         end
     end)
 end)

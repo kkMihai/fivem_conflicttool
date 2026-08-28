@@ -12,11 +12,12 @@ import { Kbd } from '@/components/ui/kbd'
 import { decodeChunks, fetchNui, isEnvBrowser, useNuiEvent } from '@/lib/nui'
 import { useStore } from '@/store/use-store'
 import type { ScanPayload, ToolState, VersionInfo } from '@/types'
-import { CursorClick } from '@phosphor-icons/react'
+import { CursorClick, Warning } from '@phosphor-icons/react'
 
 export default function App() {
     const visible = useStore(s => s.visible)
     const transform = useStore(s => s.transform)
+    const notice = useStore(s => s.notice)
     const hoverModel = useStore(s => s.hoverModel)
     const scanning = useStore(s => s.scanning)
     const conflicts = useStore(s => s.conflicts)
@@ -168,6 +169,10 @@ export default function App() {
         }
     })
 
+    useNuiEvent('gizmoLost', () => useStore.setState({ transform: null }))
+
+    useNuiEvent<string>('notice', msg => useStore.getState().setNotice(msg))
+
     useNuiEvent<'translate' | 'rotate'>('gizmoMode', mode => {
         const t = useStore.getState().transform
         if (t) useStore.setState({ transform: { ...t, mode } })
@@ -270,6 +275,14 @@ export default function App() {
                             <CursorClick className="h-3 w-3 text-primary" aria-hidden="true" />
                             click = select {hoverName ?? 'nearest conflict'}
                         </span>
+                    </div>
+                )}
+                {notice && (
+                    <div className="absolute bottom-24 left-1/2 w-max max-w-notice -translate-x-1/2">
+                        <div className="panel flex items-start gap-2 rounded-lg px-3 py-2 text-2xs" role="status">
+                            <Warning className="mt-px h-3.5 w-3.5 shrink-0 text-destructive" aria-hidden="true" />
+                            <span>{notice}</span>
+                        </div>
                     </div>
                 )}
                 <div className="absolute bottom-1 left-1/2 w-max max-w-full -translate-x-1/2">
