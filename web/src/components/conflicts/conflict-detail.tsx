@@ -26,6 +26,7 @@ export function ConflictDetail() {
     const select = useStore(s => s.select)
     const collisionTris = useStore(s => s.collisionTris)
     const toggleIgnore = useStore(s => s.toggleIgnore)
+    const clipOccluder = useStore(s => s.clipOccluder)
     const preview = useStore(s => s.preview)
     const setPreview = useStore(s => s.setPreview)
     const c = conflicts.find(x => x.id === selectedId)
@@ -168,6 +169,31 @@ export function ConflictDetail() {
                         </Button>
                     )}
                 </div>
+
+                {c.kind === 'occl-overlap' && (c.boxes?.length ?? 0) > 1 && (
+                    <div className="mx-3 mt-2 space-y-1">
+                        <div className="text-3xs font-semibold text-muted-foreground">Or shrink one so they stop overlapping:</div>
+                        {(['a', 'b'] as const).map((side, i) => {
+                            const box = c.boxes![i]
+                            return (
+                                <Button
+                                    key={side}
+                                    variant="secondary"
+                                    className="w-full justify-start"
+                                    disabled={!!resolved[c.id] || !box?.rel}
+                                    onClick={() => clipOccluder(c, side)}
+                                    title={box?.rel ? `Shrink the occluder in ${box.resource}` : 'no file path, run a fresh scan'}
+                                >
+                                    <Cube />
+                                    <span className="truncate font-mono">{box?.resource ?? '?'}</span>
+                                    <span className="ml-auto pl-2 text-muted-foreground">
+                                        {box ? `${box.l} x ${box.w} x ${box.h}` : ''}
+                                    </span>
+                                </Button>
+                            )
+                        })}
+                    </div>
+                )}
 
                 {c.kind === 'dup-file' && c.resources.length > 1 && !c.entity && (
                     <div className="mx-3 mt-2 space-y-1">

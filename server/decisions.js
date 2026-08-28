@@ -71,11 +71,12 @@ KKCT.decisions = (() => {
         const rec = {
             id,
             conflictId: d.conflictId || null,
-            action: d.action === 'bury' ? 'bury' : 'disable',
+            action: d.action === 'bury' || d.action === 'clip' ? d.action : 'disable',
             file: d.file,
             loser: d.loser,
             winner: d.winner || null,
             entity: d.entity || null,
+            box: d.box || null,
             state: 'pending',
             bundleId: null,
             createdAt: new Date().toISOString(),

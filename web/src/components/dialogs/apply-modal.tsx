@@ -40,7 +40,8 @@ export function ApplyModal() {
                                 ) : (
                                     <span>
                                         removed {r.summary.removed ?? 0} · moved {r.summary.moved ?? 0}
-                                        {r.summary.buried ? ` · buried ${r.summary.buried}` : ''} · assets {r.summary.assets ?? 0} file(s)
+                                        {r.summary.buried ? ` · buried ${r.summary.buried}` : ''}
+                                        {r.summary.clipped ? ` · shrunk ${r.summary.clipped}` : ''} · assets {r.summary.assets ?? 0} file(s)
                                     </span>
                                 )}
                             </div>

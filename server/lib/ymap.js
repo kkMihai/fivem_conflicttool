@@ -46,9 +46,12 @@ KKCT.ymap = (() => {
         }
 
         const boxOccluders = []
-        for (const b of md.boxOccluders || []) {
+        const rawBoxes = md.boxOccluders || []
+        for (let bi = 0; bi < rawBoxes.length; bi++) {
+            const b = rawBoxes[bi]
             if (!b) continue
             boxOccluders.push({
+                bi,
                 c: [round3((b.iCenterX ?? 0) / 4), round3((b.iCenterY ?? 0) / 4), round3((b.iCenterZ ?? 0) / 4)],
                 l: round3((b.iLength ?? 0) / 4),
                 w: round3((b.iWidth ?? 0) / 4),

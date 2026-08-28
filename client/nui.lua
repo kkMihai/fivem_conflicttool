@@ -151,6 +151,13 @@ RegisterNUICallback('previewEntity', function(data, cb)
     end
 end)
 
+RegisterNUICallback('clipOccluder', function(data, cb)
+    cb(true)
+    if data then
+        TriggerServerEvent('kk_ct:clipOccluder', data)
+    end
+end)
+
 RegisterNUICallback('ignoreConflict', function(data, cb)
     cb(true)
     if data and (data.key or data.items) then
@@ -312,6 +319,10 @@ end)
 
 RegisterNetEvent('kk_ct:decisionsMeta', function(meta)
     nuiSend('decisionsMeta', meta)
+end)
+
+RegisterNetEvent('kk_ct:notice', function(msg)
+    nuiSend('notice', msg)
 end)
 
 RegisterNetEvent('kk_ct:autoResolved', function(ids)

@@ -87,13 +87,17 @@ KKCT.resolver = (() => {
         const result = KKCT.ymap.patch(fs.readFileSync(src), [
             { kind: 'entityPos', archetype, from: d.entity.from, to: d.entity.to }
         ])
-        const tmp = path.join(backupsDir, `.bury-${Date.now()}-${Math.random().toString(36).slice(2)}.tmp`)
-        fs.writeFileSync(tmp, result.buf)
+        writeBack(src, result.buf, backup, parsed =>
+            parsed.entities.some(e => e.a === archetype && Math.abs(e.p[2] - d.entity.to[2]) < 0.05)
+        )
+    }
+
+    function writeBack(src, buf, backup, verify) {
+        const tmp = path.join(backupsDir, `.patch-${Date.now()}-${Math.random().toString(36).slice(2)}.tmp`)
+        fs.writeFileSync(tmp, buf)
         try {
             KKCT.fsops.copyInto(tmp, src)
-            const check = KKCT.ymap.parse(fs.readFileSync(src))
-            const landed = check.entities.some(e => e.a === archetype && Math.abs(e.p[2] - d.entity.to[2]) < 0.05)
-            if (!landed) throw new Error('patched file did not verify')
+            if (!verify(KKCT.ymap.parse(fs.readFileSync(src)))) throw new Error('patched file did not verify')
         } catch (e) {
             try {
                 KKCT.fsops.copyInto(backup, src)
@@ -104,6 +108,26 @@ KKCT.resolver = (() => {
                 fs.unlinkSync(tmp)
             } catch {}
         }
+    }
+
+    function clipInPlace(src, d, backup) {
+        if (!d.box || typeof d.box.index !== 'number' || !d.box.fields) {
+            throw new Error('clip decision has no box')
+        }
+        const result = KKCT.ymap.patch(fs.readFileSync(src), [
+            { kind: 'boxOccluder', index: d.box.index, fields: d.box.fields }
+        ])
+        writeBack(src, result.buf, backup, parsed => {
+            const box = (parsed.boxOccluders || []).find(b => b.bi === d.box.index)
+            if (!box) return false
+            const want = d.box.after
+            return Math.abs(box.c[0] - want.c[0]) < 0.3 &&
+                Math.abs(box.c[1] - want.c[1]) < 0.3 &&
+                Math.abs(box.c[2] - want.c[2]) < 0.3 &&
+                Math.abs(box.l - want.l) < 0.3 &&
+                Math.abs(box.w - want.w) < 0.3 &&
+                Math.abs(box.h - want.h) < 0.3
+        })
     }
 
     async function apply(progress) {
@@ -134,6 +158,8 @@ KKCT.resolver = (() => {
                 }
                 if (d.action === 'bury') {
                     buryInPlace(src, d, dest)
+                } else if (d.action === 'clip') {
+                    clipInPlace(src, d, dest)
                 } else {
                     KKCT.fsops.removeFile(src)
                 }
@@ -146,7 +172,8 @@ KKCT.resolver = (() => {
                     to: `${d.loser.resource}/${(d.loser.relPath || d.loser.rel).replace(/\\/g, '/')}`,
                     sha1: currentSha,
                     size: fs.statSync(dest).size,
-                    kind: d.action === 'bury' ? 'edit' : 'move'
+                    clip: d.action === 'clip' || undefined,
+                    kind: (d.action === 'bury' || d.action === 'clip') ? 'edit' : 'move'
                 })
             } catch (e) {
                 errors.push({ file: d.file, resource: d.loser ? d.loser.resource : '?', msg: e.message })
@@ -157,7 +184,8 @@ KKCT.resolver = (() => {
         const summary = {
             removed: entities.filter(e => e.action === 'remove').length,
             moved: entities.filter(e => e.action === 'move').length,
-            buried: moves.filter(m => m.kind === 'edit').length,
+            buried: moves.filter(m => m.kind === 'edit' && !m.clip).length,
+            clipped: moves.filter(m => m.kind === 'edit' && m.clip).length,
             assets: moves.filter(m => m.kind !== 'edit').length,
             files: moves.length,
             errors: errors.length

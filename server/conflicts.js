@@ -73,7 +73,7 @@ KKCT.conflicts = (() => {
             const winner = sorted[sorted.length - 1]
             if (winner.ext === 'ymap' && winner.parsed) {
                 for (const b of winner.parsed.boxOccluders || []) {
-                    allOccluders.push({ resource: winner.resource, file: key, c: b.c, l: b.l, w: b.w, h: b.h, cz: b.cz, sz: b.sz })
+                    allOccluders.push({ resource: winner.resource, file: key, rel: winner.rel, bi: b.bi, c: b.c, l: b.l, w: b.w, h: b.h, cz: b.cz, sz: b.sz })
                 }
             }
             if (winner.ext === 'ytyp' && winner.parsed) {
@@ -348,8 +348,8 @@ KKCT.conflicts = (() => {
                     pos: a.c,
                     autoRes: null,
                     resources: [
-                        { name: a.resource, rel: a.file, size: 0, sha1: '', status: 'occluder here' },
-                        { name: b.resource, rel: b.file, size: 0, sha1: '', status: 'occluder here too' }
+                        { name: a.resource, rel: a.rel, size: 0, sha1: '', status: 'occluder here' },
+                        { name: b.resource, rel: b.rel, size: 0, sha1: '', status: 'occluder here too' }
                     ],
                     entity: null,
                     target: null,

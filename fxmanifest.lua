@@ -32,6 +32,7 @@ server_scripts {
     'server/lib/ymap.js',
     'server/lib/ytyp.js',
     'server/lib/ybn.js',
+    'server/lib/occlusion.js',
     'server/lib/names.js',
     'server/decisions.js',
     'server/ignores.js',

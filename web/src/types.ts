@@ -37,7 +37,7 @@ export interface Conflict {
     entity: ConflictEntity | null
     target: { pos: [number, number, number]; rot: [number, number, number, number]; model: number } | null
     near: { label: string; dist: number }[] | null
-    boxes?: { c: [number, number, number]; l: number; w: number; h: number; cz: number; sz: number }[] | null
+    boxes?: OccluderBox[] | null
     explain: { summary: string; note: string }
     suggested: { action: string; losers: { resource: string; rel: string; sha1: string }[] }
 }
@@ -85,7 +85,7 @@ export interface DecisionsMeta {
 export interface Backup {
     id: string
     createdAt: string
-    summary: { removed: number; moved: number; buried?: number; assets: number; files: number; errors?: number }
+    summary: { removed: number; moved: number; buried?: number; clipped?: number; assets: number; files: number; errors?: number }
     files: number
     resources: string[]
     restored: boolean
@@ -99,6 +99,19 @@ export interface VersionInfo {
     url: string
     checkedAt: number | null
     error: string | null
+}
+
+export interface OccluderBox {
+    c: [number, number, number]
+    l: number
+    w: number
+    h: number
+    cz: number
+    sz: number
+    bi?: number
+    resource?: string
+    rel?: string
+    file?: string
 }
 
 export interface ToolState {

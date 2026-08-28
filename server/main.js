@@ -194,6 +194,33 @@ onNet('kk_ct:bury', d => {
     pushState(src)
 })
 
+onNet('kk_ct:clipOccluder', d => {
+    const src = source
+    if (!allowed(src)) return
+    if (!d || !d.a || !d.b || (d.target !== 'a' && d.target !== 'b')) return
+    const clip = KKCT.occlusion.clip(d.a, d.b, d.target)
+    if (!clip.ok) {
+        emitNet('kk_ct:notice', src, clip.reason)
+        return
+    }
+    const victim = d.target === 'a' ? d.a : d.b
+    if (!victim.resource || !victim.rel) {
+        emitNet('kk_ct:notice', src, 'that occluder has no file path, run a fresh scan')
+        return
+    }
+    KKCT.decisions.addAsset({
+        action: 'clip',
+        conflictId: d.conflictId || null,
+        file: victim.file || victim.rel,
+        loser: { resource: victim.resource, relPath: victim.rel },
+        box: { index: clip.index, fields: clip.fields, after: clip.after },
+        by: GetPlayerName(src)
+    })
+    emitNet('kk_ct:notice', src, `Queued a shrink of the ${victim.resource} occluder on its ${clip.axis} axis by ${clip.overlap}m. Run Resolve, then restart.`)
+    emitNet('kk_ct:decisionsMeta', src, KKCT.decisions.meta())
+    pushState(src)
+})
+
 onNet('kk_ct:undo', () => {
     const src = source
     if (!allowed(src)) return
