@@ -15,6 +15,7 @@ CT = {
     typing = false,
     overUi = false,
     hoverMarker = nil,
+    pulse = nil,
     missAt = 0,
     missX = 0.5,
     missY = 0.5,

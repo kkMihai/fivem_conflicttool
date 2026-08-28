@@ -280,6 +280,21 @@ RegisterNUICallback('worldVisuals', function(data, cb)
     end
 end)
 
+RegisterNUICallback('resolvedPulse', function(data, cb)
+    cb(true)
+    local pts = data and data.points or nil
+    if not pts or #pts == 0 then
+        CT.pulse = nil
+        return
+    end
+    if #pts > 250 then
+        local trimmed = {}
+        for i = 1, 250 do trimmed[i] = pts[i] end
+        pts = trimmed
+    end
+    CT.pulse = { at = GetGameTimer(), pts = pts }
+end)
+
 RegisterNUICallback('occlBoxes', function(data, cb)
     cb(true)
     if CT.OcclEdit.active then

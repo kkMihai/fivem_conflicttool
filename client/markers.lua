@@ -87,6 +87,45 @@ CreateThread(function()
     end
 end)
 
+local PULSE_MS = 2600
+
+local function drawPulse()
+    local p = CT.pulse
+    if not p then return end
+    local t = GetGameTimer() - p.at
+    if t > PULSE_MS then
+        CT.pulse = nil
+        return
+    end
+    local k = t / PULSE_MS
+    local grow = 0.4 + k * 2.6
+    local alpha = math.floor(230 * (1.0 - k))
+    if alpha < 1 then return end
+    local col = CT.colors.vanilla
+    local camPos = CT.Freecam.active and CT.Freecam.pos or GetGameplayCamCoord()
+    local cx, cy = camPos.x, camPos.y
+    local pts = p.pts
+    for i = 1, #pts do
+        local q = pts[i]
+        local dx, dy = q[1] - cx, q[2] - cy
+        if dx * dx + dy * dy < 250000.0 then
+            DrawMarker(28, q[1], q[2], q[3], 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, grow, grow, grow, col[1], col[2], col[3], alpha, false, false, 2, false, nil, nil, false)
+            DrawLine(q[1], q[2], q[3] - 8.0, q[1], q[2], q[3] + 12.0, col[1], col[2], col[3], alpha)
+        end
+    end
+end
+
+CreateThread(function()
+    while true do
+        if CT.open and CT.pulse then
+            Wait(0)
+            drawPulse()
+        else
+            Wait(200)
+        end
+    end
+end)
+
 CreateThread(function()
     while true do
         if CT.open and CT.showVisuals and not CT.overUi and not CT.typing then

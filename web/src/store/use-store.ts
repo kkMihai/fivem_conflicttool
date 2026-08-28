@@ -49,7 +49,8 @@ interface StoreState {
     toggleCollViz: () => void
     setVisible: (v: boolean) => void
     setConflicts: (c: Conflict[]) => void
-    setNotice: (msg: string | null) => void
+    noticeKind: 'warn' | 'success'
+    setNotice: (msg: string | null, kind?: 'warn' | 'success') => void
     setTab: (t: Tab) => void
     setSearch: (s: string) => void
     setShowVanilla: (v: boolean) => void
@@ -110,6 +111,7 @@ export const useStore = create<StoreState>((set, get) => ({
     conflicts: isEnvBrowser() ? mockConflicts : [],
     resolved: {},
     notice: null,
+    noticeKind: 'warn',
     tab: 'all',
     search: '',
     showVanilla: true,
@@ -466,9 +468,9 @@ export const useStore = create<StoreState>((set, get) => ({
         get().pushHistory({ id: c.id, label: c.file, action: `keep ${keeper}` })
     },
 
-    setNotice: msg => {
+    setNotice: (msg, kind = 'warn') => {
         if (noticeTimer) clearTimeout(noticeTimer)
-        set({ notice: msg })
+        set({ notice: msg, noticeKind: kind })
         if (msg) {
             noticeTimer = setTimeout(() => set({ notice: null }), 7000)
         }
@@ -541,11 +543,11 @@ export const useStore = create<StoreState>((set, get) => ({
     pushMarkers: () => {
         const s = get()
         const list = s.filtered()
-        const shown = list.filter(c => c.pos).slice(0, 1500)
+        const shown = list.filter(c => c.pos && !(s.resolved[c.id] ?? '').startsWith('applied')).slice(0, 1500)
         const sel = s.selectedId
         if (sel && !shown.some(c => c.id === sel)) {
             const c = s.conflicts.find(x => x.id === sel && x.pos)
-            if (c) shown.push(c)
+            if (c && !(s.resolved[c.id] ?? '').startsWith('applied')) shown.push(c)
         }
         markerIds = new Set(shown.map(c => c.id))
         const markers: { id: string; x: number; y: number; z: number; cat: Category; ci: number; bx?: number }[] = []

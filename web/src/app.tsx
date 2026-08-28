@@ -13,12 +13,13 @@ import { Kbd } from '@/components/ui/kbd'
 import { decodeChunks, fetchNui, isEnvBrowser, useNuiEvent } from '@/lib/nui'
 import { useStore } from '@/store/use-store'
 import type { Conflict, ScanPayload, ToolState, VersionInfo } from '@/types'
-import { CursorClick, Warning } from '@phosphor-icons/react'
+import { CheckCircle, CursorClick, Warning } from '@phosphor-icons/react'
 
 export default function App() {
     const visible = useStore(s => s.visible)
     const transform = useStore(s => s.transform)
     const notice = useStore(s => s.notice)
+    const noticeKind = useStore(s => s.noticeKind)
     const hoverModel = useStore(s => s.hoverModel)
     const scanning = useStore(s => s.scanning)
     const conflicts = useStore(s => s.conflicts)
@@ -230,8 +231,27 @@ export default function App() {
     })
 
     useNuiEvent<any>('applyDone', result => {
-        const a = useStore.getState().applyState
+        const s = useStore.getState()
+        const a = s.applyState
         useStore.setState({ applyState: { ...(a ?? { step: 0, total: 0, label: '' }), open: true, done: true, result, step: 0, total: 0, label: '' } })
+        const ids: string[] = result?.conflictIds ?? []
+        if (!ids.length) return
+        const done = new Set(ids)
+        const resolved = { ...s.resolved }
+        const points: number[][] = []
+        for (const c of s.conflicts) {
+            if (!done.has(c.id)) continue
+            resolved[c.id] = 'applied · fixed on disk'
+            if (c.pos) points.push(c.pos)
+        }
+        useStore.setState({ resolved })
+        useStore.getState().pushMarkers()
+        if (points.length) fetchNui('resolvedPulse', { points })
+        const n = result?.summary?.files ?? ids.length
+        useStore.getState().setNotice(
+            `Resolved ${ids.length} conflict${ids.length === 1 ? '' : 's'} across ${n} file${n === 1 ? '' : 's'}. Their markers are cleared.`,
+            'success'
+        )
     })
 
     useNuiEvent<any>('backups', list => useStore.setState({ backups: list }))
@@ -317,7 +337,11 @@ export default function App() {
                 {notice && (
                     <div className="absolute bottom-24 left-1/2 w-max max-w-notice -translate-x-1/2">
                         <div className="panel flex items-start gap-2 rounded-lg px-3 py-2 text-2xs" role="status">
-                            <Warning className="mt-px h-3.5 w-3.5 shrink-0 text-destructive" aria-hidden="true" />
+                            {noticeKind === 'success' ? (
+                                <CheckCircle className="mt-px h-3.5 w-3.5 shrink-0 text-cat-vanilla" aria-hidden="true" />
+                            ) : (
+                                <Warning className="mt-px h-3.5 w-3.5 shrink-0 text-destructive" aria-hidden="true" />
+                            )}
                             <span>{notice}</span>
                         </div>
                     </div>

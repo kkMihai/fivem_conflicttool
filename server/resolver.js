@@ -137,6 +137,7 @@ KKCT.resolver = (() => {
         const bundleDir = path.join(backupsDir, bundleId)
         const moves = []
         const errors = []
+        const appliedIds = new Set()
         let step = 0
 
         for (const d of pending) {
@@ -165,6 +166,7 @@ KKCT.resolver = (() => {
                 }
                 d.state = 'applied'
                 d.bundleId = bundleId
+                if (d.conflictId) appliedIds.add(d.conflictId)
                 moves.push({
                     from: src.replace(/\\/g, '/'),
                     fromResource: d.loser.resource,
@@ -204,8 +206,19 @@ KKCT.resolver = (() => {
             fs.writeFileSync(path.join(bundleDir, 'manifest.json'), JSON.stringify(manifest, null, 2))
         }
 
+        for (const e of entities) {
+            if (e.conflictId) appliedIds.add(e.conflictId)
+        }
+
         KKCT.decisions.save()
-        return { bundleId: moves.length ? bundleId : null, summary, errors, restartRequired: moves.length > 0, permissionHint }
+        return {
+            bundleId: moves.length ? bundleId : null,
+            summary,
+            errors,
+            conflictIds: [...appliedIds],
+            restartRequired: moves.length > 0,
+            permissionHint
+        }
     }
 
     return { init, apply, backupsDir: () => backupsDir }

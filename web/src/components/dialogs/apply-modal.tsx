@@ -1,8 +1,9 @@
-import { CheckCircle, CircleNotch, Warning } from '@phosphor-icons/react'
+import { ArrowsClockwise, CheckCircle, CircleNotch, Warning } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Progress } from '@/components/ui/progress'
 import { useStore } from '@/store/use-store'
+import { fetchNui } from '@/lib/nui'
 
 export function ApplyModal() {
     const applyState = useStore(s => s.applyState)
@@ -46,6 +47,12 @@ export function ApplyModal() {
                                 )}
                             </div>
                         )}
+                        {r?.conflictIds?.length > 0 && (
+                            <div className="flex items-center gap-1.5 rounded-md border border-cat-vanilla/40 bg-cat-vanilla/10 p-2 text-2xs text-cat-vanilla">
+                                <CheckCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                                {r.conflictIds.length} conflict{r.conflictIds.length === 1 ? '' : 's'} cleared from the map
+                            </div>
+                        )}
                         {r?.errors?.length > 0 && (
                             <div className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-3xs text-destructive">
                                 {r.errors.slice(0, 4).map((e: any, i: number) => (
@@ -70,9 +77,23 @@ export function ApplyModal() {
                                 </div>
                             </div>
                         )}
-                        <Button className="w-full" size="sm" onClick={() => useStore.setState({ applyState: null })}>
-                            Done
-                        </Button>
+                        <div className="grid grid-cols-2 gap-1.5">
+                            <Button
+                                variant="secondary"
+                                size="sm"
+                                title="Scan again so the list matches the files on disk"
+                                onClick={() => {
+                                    useStore.setState({ applyState: null })
+                                    fetchNui('requestScan', { force: true })
+                                }}
+                            >
+                                <ArrowsClockwise aria-hidden="true" />
+                                Re-scan
+                            </Button>
+                            <Button size="sm" onClick={() => useStore.setState({ applyState: null })}>
+                                Done
+                            </Button>
+                        </div>
                     </div>
                 )}
             </DialogContent>
