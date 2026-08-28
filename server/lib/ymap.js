@@ -6,6 +6,20 @@ KKCT.ymap = (() => {
     const round4 = v => Math.round((v ?? 0) * 10000) / 10000
     const box = (mn, mx) => (mn && mx) ? { min: mn.map(round3), max: mx.map(round3) } : null
 
+    function occlMag(b) {
+        return Math.hypot(b.iSinZ ?? 0, b.iCosZ ?? 0)
+    }
+
+    function occlCos(b) {
+        const m = occlMag(b)
+        return m > 0 ? (b.iSinZ ?? 0) / m : 1
+    }
+
+    function occlSin(b) {
+        const m = occlMag(b)
+        return m > 0 ? (b.iCosZ ?? 0) / m : 0
+    }
+
     function parse(buf) {
         const { data } = KKCT.rsc7.parse(buf)
         const meta = KKCT.meta.parse(data)
@@ -39,8 +53,8 @@ KKCT.ymap = (() => {
                 l: round3((b.iLength ?? 0) / 4),
                 w: round3((b.iWidth ?? 0) / 4),
                 h: round3((b.iHeight ?? 0) / 4),
-                cz: (b.iCosZ ?? 0) / 32767,
-                sz: (b.iSinZ ?? 0) / 32767
+                cz: occlCos(b),
+                sz: occlSin(b)
             })
         }
 

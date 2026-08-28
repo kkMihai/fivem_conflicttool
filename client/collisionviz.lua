@@ -130,7 +130,7 @@ end
 local function drawOcclBox(b)
     local cx, cy, cz0 = b.c[1], b.c[2], b.c[3]
     local hl, hw, hh = (b.l or 1) / 2, (b.w or 1) / 2, (b.h or 1) / 2
-    local co, si = b.sz or 1.0, b.cz or 0.0
+    local co, si = b.cz or 1.0, b.sz or 0.0
     local len = math.sqrt(co * co + si * si)
     if len > 0.001 then
         co, si = co / len, si / len
