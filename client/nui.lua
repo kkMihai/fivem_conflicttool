@@ -151,6 +151,13 @@ RegisterNUICallback('previewEntity', function(data, cb)
     end
 end)
 
+RegisterNUICallback('mergeOccluders', function(data, cb)
+    cb(true)
+    if data then
+        TriggerServerEvent('kk_ct:mergeOccluders', data)
+    end
+end)
+
 RegisterNUICallback('clipOccluder', function(data, cb)
     cb(true)
     if data then

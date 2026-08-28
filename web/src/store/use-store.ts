@@ -58,6 +58,7 @@ interface StoreState {
     showAllExts: () => void
     toggleIgnore: (c: Conflict) => void
     clipOccluder: (c: Conflict, target: 'a' | 'b') => void
+    mergeOccluders: (c: Conflict) => void
     toggleChecked: (id: string, shift?: boolean) => void
     clearChecked: () => void
     bulkIgnore: (on: boolean) => void
@@ -178,6 +179,12 @@ export const useStore = create<StoreState>((set, get) => ({
         const boxes = c.boxes
         if (!boxes || boxes.length < 2) return
         fetchNui('clipOccluder', { conflictId: c.id, a: boxes[0], b: boxes[1], target })
+    },
+
+    mergeOccluders: c => {
+        const boxes = c.boxes
+        if (!boxes || boxes.length < 2) return
+        fetchNui('mergeOccluders', { conflictId: c.id, a: boxes[0], b: boxes[1] })
     },
 
     toggleExt: ext => {

@@ -221,6 +221,46 @@ onNet('kk_ct:clipOccluder', d => {
     pushState(src)
 })
 
+onNet('kk_ct:mergeOccluders', d => {
+    const src = source
+    if (!allowed(src)) return
+    if (!d || !d.a || !d.b) return
+    const merge = KKCT.occlusion.merge(d.a, d.b)
+    if (!merge.ok) {
+        emitNet('kk_ct:notice', src, merge.reason)
+        return
+    }
+    const by = GetPlayerName(src)
+    const boxOf = which => (which === 'a' ? d.a : d.b)
+    const queue = (which, part) => {
+        const box = boxOf(which)
+        if (!box.resource || !box.rel) return false
+        KKCT.decisions.addAsset({
+            action: 'clip',
+            conflictId: d.conflictId || null,
+            file: box.file || box.rel,
+            loser: { resource: box.resource, relPath: box.rel },
+            box: { index: part.index, fields: part.fields, after: part.after },
+            by
+        })
+        return true
+    }
+    let queued = 0
+    if (merge.expand && queue(merge.expand.box, merge.expand)) queued++
+    if (queue(merge.zero.box, merge.zero)) queued++
+    if (!queued) {
+        emitNet('kk_ct:notice', src, 'those occluders have no file paths, run a fresh scan')
+        return
+    }
+    if (merge.mode === 'contained') {
+        emitNet('kk_ct:notice', src, `One occluder already covers the other. Queued a zero of the ${boxOf(merge.zero.box).resource} copy. Run Resolve, then restart.`)
+    } else {
+        emitNet('kk_ct:notice', src, `Queued a merge: the ${boxOf(merge.expand.box).resource} occluder grows to the union, the ${boxOf(merge.zero.box).resource} one is zeroed. Run Resolve, then restart.`)
+    }
+    emitNet('kk_ct:decisionsMeta', src, KKCT.decisions.meta())
+    pushState(src)
+})
+
 onNet('kk_ct:undo', () => {
     const src = source
     if (!allowed(src)) return

@@ -27,6 +27,7 @@ export function ConflictDetail() {
     const collisionTris = useStore(s => s.collisionTris)
     const toggleIgnore = useStore(s => s.toggleIgnore)
     const clipOccluder = useStore(s => s.clipOccluder)
+    const mergeOccluders = useStore(s => s.mergeOccluders)
     const preview = useStore(s => s.preview)
     const setPreview = useStore(s => s.setPreview)
     const c = conflicts.find(x => x.id === selectedId)
@@ -172,7 +173,17 @@ export function ConflictDetail() {
 
                 {c.kind === 'occl-overlap' && (c.boxes?.length ?? 0) > 1 && (
                     <div className="mx-3 mt-2 space-y-1">
-                        <div className="text-3xs font-semibold text-muted-foreground">Or shrink one so they stop overlapping:</div>
+                        <div className="text-3xs font-semibold text-muted-foreground">Or fix the volumes instead of deleting a file:</div>
+                        <Button
+                            variant="secondary"
+                            className="w-full justify-start"
+                            disabled={!!resolved[c.id] || !c.boxes![0]?.rel || !c.boxes![1]?.rel}
+                            onClick={() => mergeOccluders(c)}
+                            title="Grow one occluder to cover both volumes and zero the other"
+                        >
+                            <Swap />
+                            Merge into one occluder
+                        </Button>
                         {(['a', 'b'] as const).map((side, i) => {
                             const box = c.boxes![i]
                             return (
