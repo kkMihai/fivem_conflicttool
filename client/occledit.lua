@@ -5,6 +5,7 @@ local data = nil
 local orig = nil
 local cur = nil
 local dragActive = false
+local session = 0
 
 local function round3(v)
     return math.floor(v * 1000 + 0.5) / 1000
@@ -110,10 +111,13 @@ function OE.Start(d)
         CT.Gizmo.mode = 'translate'
     end
     CT.Gizmo.pendingMode = CT.Gizmo.mode
+    session = session + 1
+    local mySession = session
     CreateThread(function()
         local emitAt = 0
-        while OE.active do
+        while OE.active and session == mySession do
             Wait(0)
+            if not (OE.active and session == mySession and cur) then break end
             DisableControlAction(0, 24, true)
             DisableControlAction(0, 25, true)
             DisableControlAction(0, 140, true)
@@ -136,7 +140,7 @@ function OE.Start(d)
 end
 
 function OE.Apply()
-    if not OE.active then return end
+    if not (OE.active and cur and data) then return end
     local d = data
     local after = {
         c = { round3(cur.c[1]), round3(cur.c[2]), round3(cur.c[3]) },
@@ -153,6 +157,7 @@ end
 function OE.Stop(restore)
     if not OE.active then return end
     OE.active = false
+    session = session + 1
     CT.mode = 'browse'
     OE.DragStop()
     if restore and orig then
