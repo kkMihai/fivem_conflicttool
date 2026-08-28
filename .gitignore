@@ -1,0 +1,9 @@
+node_modules/
+/data/
+/dist-release/
+web/node_modules/
+web/dist/
+web/tsconfig.tsbuildinfo
+.claude/
+yarn.lock
+.yarn.installed

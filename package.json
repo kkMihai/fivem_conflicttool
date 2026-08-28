@@ -1,0 +1,31 @@
+{
+  "name": "fivem_conflicttool",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "in-game map conflict scanner and resolver for FiveM",
+  "author": "kkMihai",
+  "license": "GPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kkMihai/fivem_conflicttool.git"
+  },
+  "scripts": {
+    "web:install": "npm --prefix web install",
+    "typecheck": "npm --prefix web run typecheck",
+    "build": "npm --prefix web run build",
+    "sync-version": "node tools/sync-version.mjs",
+    "package": "node tools/package-release.mjs",
+    "release": "npm run build && bumpp",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^21.2.2",
+    "@commitlint/config-conventional": "^21.2.2",
+    "@commitlint/types": "^21.2.0",
+    "bumpp": "^12.2.2",
+    "changelogithub": "^15.0.5",
+    "husky": "^9.1.7",
+    "typescript": "^7.0.2"
+  }
+}

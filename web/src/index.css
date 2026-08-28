@@ -1,0 +1,144 @@
+@import '@fontsource/ibm-plex-sans/400.css';
+@import '@fontsource/ibm-plex-sans/500.css';
+@import '@fontsource/ibm-plex-sans/600.css';
+@import '@fontsource/ibm-plex-sans/700.css';
+@import '@fontsource/jetbrains-mono/400.css';
+@import '@fontsource/jetbrains-mono/500.css';
+@import '@fontsource/jetbrains-mono/600.css';
+@import '@fontsource/jetbrains-mono/700.css';
+@import 'tailwindcss';
+
+@theme {
+    --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', monospace;
+
+    --color-background: hsl(0 0% 2.5%);
+    --color-foreground: hsl(0 0% 95%);
+    --color-card: hsl(0 0% 6%);
+    --color-card-foreground: hsl(0 0% 95%);
+    --color-popover: hsl(0 0% 3%);
+    --color-popover-foreground: hsl(0 0% 95%);
+    --color-primary: hsl(0 0% 98%);
+    --color-primary-foreground: hsl(0 0% 8%);
+    --color-secondary: hsl(0 0% 8%);
+    --color-secondary-foreground: hsl(0 0% 85%);
+    --color-muted: hsl(0 0% 9%);
+    --color-muted-foreground: hsl(0 0% 68%);
+    --color-accent: hsl(0 0% 11%);
+    --color-accent-foreground: hsl(0 0% 95%);
+    --color-destructive: hsl(0 78% 60%);
+    --color-destructive-foreground: hsl(0 0% 100%);
+    --color-border: hsl(0 0% 13%);
+    --color-input: hsl(0 0% 14%);
+    --color-ring: hsl(0 0% 80%);
+
+    --color-cat-coll: hsl(0 82% 62%);
+    --color-cat-occl: hsl(38 95% 58%);
+    --color-cat-prop: hsl(190 90% 58%);
+    --color-cat-asset: hsl(262 90% 70%);
+    --color-cat-vanilla: hsl(145 70% 48%);
+    --color-res-a: hsl(262 90% 80%);
+    --color-res-b: hsl(190 90% 58%);
+
+    --text-2xs: 0.6875rem;
+    --text-2xs--line-height: 1rem;
+    --text-3xs: 0.625rem;
+    --text-3xs--line-height: 0.875rem;
+
+    --container-dock: 23.75rem;
+    --container-detail: 20.625rem;
+    --container-scan: 21.25rem;
+    --container-transform: 18.75rem;
+
+    --radius-xl: 0.75rem;
+    --radius-lg: 0.625rem;
+    --radius-md: 0.4375rem;
+    --radius-sm: 0.3125rem;
+
+    --animate-rise: rise 0.25s ease-out both;
+
+    @keyframes rise {
+        from {
+            opacity: 0;
+            transform: translateY(6px) scale(0.995);
+        }
+        to {
+            opacity: 1;
+            transform: none;
+        }
+    }
+}
+
+@utility panel {
+    border: 1px solid var(--color-border);
+    background:
+        linear-gradient(180deg, hsl(0 0% 100% / 0.04), hsl(0 0% 100% / 0) 3.5rem),
+        var(--color-popover);
+    box-shadow:
+        inset 0 1px 0 hsl(0 0% 100% / 0.06),
+        0 12px 40px hsl(0 0% 0% / 0.55);
+}
+
+@utility kbd-key {
+    border: 1px solid var(--color-border);
+    background: var(--color-secondary);
+    box-shadow:
+        inset 0 -1.5px 0 hsl(0 0% 0% / 0.55),
+        inset 0 1px 0 hsl(0 0% 100% / 0.08);
+}
+
+@utility chip-glass {
+    border: 1px solid var(--color-border);
+    background: var(--color-popover);
+    box-shadow: 0 6px 20px hsl(0 0% 0% / 0.45);
+}
+
+html,
+body,
+#root {
+    height: 100%;
+    background: transparent;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+:focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 1px;
+}
+
+body {
+    font-family: var(--font-sans);
+    color: var(--color-foreground);
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+* {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--color-muted-foreground) 32%, transparent) transparent;
+}
+
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--color-muted-foreground) 32%, transparent);
+    border-radius: var(--radius-sm);
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}

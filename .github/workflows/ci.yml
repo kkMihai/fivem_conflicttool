@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Typecheck and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22.x'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - run: npm ci --prefix web
+
+      - run: npm run typecheck
+
+      - run: npm run build
+
+      - name: Syntax-check server scripts
+        run: for f in $(find server tools -name '*.js' -o -name '*.mjs'); do node --check "$f"; done
+
+      - name: Check resource name is consistent
+        run: |
+          grep -q "^name 'fivem_conflicttool'$" fxmanifest.lua
+          ! grep -rn "kk_conflicttool" --include='*.lua' --include='*.js' --include='*.mjs' --include='*.ts' --include='*.tsx' --include='*.md' .

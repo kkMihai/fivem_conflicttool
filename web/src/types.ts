@@ -1,0 +1,129 @@
+export type Category = 'asset' | 'prop' | 'occl' | 'coll'
+
+export interface ConflictResource {
+    name: string
+    rel: string
+    size: number
+    sha1: string
+    fullSha1?: string
+    status: string
+}
+
+export interface ConflictEntity {
+    model: number
+    name: string
+    guid: number
+    pos: [number, number, number]
+    rot: [number, number, number, number]
+    radius: number
+}
+
+export interface Conflict {
+    id: string
+    key: string
+    ignored?: boolean
+    isNew?: boolean
+    cat: Category
+    sev: 'cosmetic' | 'medium' | 'high'
+    kind: string
+    title: string
+    sub: string
+    file: string
+    badges: string[]
+    vanilla: boolean
+    pos: [number, number, number] | null
+    autoRes: 'assets' | 'props' | null
+    resources: ConflictResource[]
+    entity: ConflictEntity | null
+    target: { pos: [number, number, number]; rot: [number, number, number, number]; model: number } | null
+    near: { label: string; dist: number }[] | null
+    boxes?: { c: [number, number, number]; l: number; w: number; h: number; cz: number; sz: number }[] | null
+    explain: { summary: string; note: string }
+    suggested: { action: string; losers: { resource: string; rel: string; sha1: string }[] }
+}
+
+export interface ScanMeta {
+    scanId: string
+    scannedAt: string
+    durationMs: number
+    resourceCount: number
+    modPackCount: number
+    fileCount: number
+    counts: { all: number; coll: number; occl: number; prop: number; asset: number }
+    autoRes: number
+    newCount?: number
+    ignoredCount?: number
+    parseErrorCount: number
+}
+
+export interface ResourceWeight {
+    name: string
+    bytes: number
+    files: number
+    over: { rel: string; size: number }[]
+}
+
+export interface ScanPayload {
+    scanId: string
+    scannedAt: string
+    durationMs: number
+    resourceCount: number
+    modPackCount: number
+    fileCount: number
+    parseErrors: { resource: string; file: string; msg: string }[]
+    conflicts: Conflict[]
+    weights?: ResourceWeight[]
+}
+
+export interface DecisionsMeta {
+    entities: number
+    assetsPending: number
+    assetsApplied: number
+    updatedAt: string | null
+}
+
+export interface Backup {
+    id: string
+    createdAt: string
+    summary: { removed: number; moved: number; assets: number; files: number; errors?: number }
+    files: number
+    resources: string[]
+    restored: boolean
+    current?: boolean
+}
+
+export interface VersionInfo {
+    current: string
+    latest: string | null
+    updateAvailable: boolean
+    url: string
+    checkedAt: number | null
+    error: string | null
+}
+
+export interface ToolState {
+    scanMeta: ScanMeta | null
+    decisions: DecisionsMeta
+    backups: Backup[]
+    scanning: boolean
+    queued?: { assets: string[]; entities: string[] }
+    version?: VersionInfo
+}
+
+export interface HistoryEntry {
+    id: string
+    label: string
+    action: string
+    at: number
+}
+
+export interface TransformState {
+    conflictId: string
+    model: number
+    name: string
+    pos: [number, number, number]
+    rot: [number, number, number]
+    quat: [number, number, number, number]
+    mode: 'translate' | 'rotate'
+    grid: boolean
+}
