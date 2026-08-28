@@ -232,6 +232,44 @@ onNet('kk_ct:clipOccluder', d => {
     }
 })
 
+onNet('kk_ct:zeroOccluder', d => {
+    const src = source
+    if (!allowed(src)) return
+    try {
+        if (!d || !d.a || !d.b || (d.target !== 'a' && d.target !== 'b')) return
+        const victim = d.target === 'a' ? d.a : d.b
+        if (!victim.resource || !victim.rel) {
+            emitNet('kk_ct:notice', src, 'that occluder has no file path, run a fresh scan')
+            return
+        }
+        const zero = KKCT.occlusion.zero(victim)
+        if (!zero.ok) {
+            emitNet('kk_ct:notice', src, zero.reason)
+            return
+        }
+        KKCT.decisions.addAsset({
+            action: 'clip',
+            conflictId: d.conflictId || null,
+            file: victim.file || victim.rel,
+            loser: { resource: victim.resource, relPath: victim.rel },
+            box: { index: zero.index, fields: zero.fields, after: zero.after },
+            by: GetPlayerName(src)
+        })
+        const newBoxes = [d.a, d.b].map((box, i) => {
+            const side = i === 0 ? 'a' : 'b'
+            if (side !== d.target) return box
+            return { ...box, l: 0, w: 0, h: 0 }
+        })
+        emitNet('kk_ct:occlPreview', src, { conflictId: d.conflictId || null, boxes: newBoxes })
+        emitNet('kk_ct:notice', src, `Queued a removal of the ${victim.resource} occluder, its volume is zeroed in the file.`)
+        emitNet('kk_ct:decisionsMeta', src, KKCT.decisions.meta())
+        pushState(src)
+    } catch (e) {
+        console.log(`[fivem_conflicttool] zeroOccluder failed: ${e.message}`)
+        emitNet('kk_ct:notice', src, 'the removal failed on the server, check the server console')
+    }
+})
+
 onNet('kk_ct:mergeOccluders', d => {
     const src = source
     if (!allowed(src)) return

@@ -28,6 +28,7 @@ export function ConflictDetail() {
     const toggleIgnore = useStore(s => s.toggleIgnore)
     const clipOccluder = useStore(s => s.clipOccluder)
     const mergeOccluders = useStore(s => s.mergeOccluders)
+    const zeroOccluder = useStore(s => s.zeroOccluder)
     const preview = useStore(s => s.preview)
     const setPreview = useStore(s => s.setPreview)
     const c = conflicts.find(x => x.id === selectedId)
@@ -186,21 +187,39 @@ export function ConflictDetail() {
                         </Button>
                         {(['a', 'b'] as const).map((side, i) => {
                             const box = c.boxes![i]
+                            const gone = !!box && box.l === 0 && box.w === 0 && box.h === 0
+                            const locked = !!resolved[c.id] || !box?.rel || gone
                             return (
-                                <Button
-                                    key={side}
-                                    variant="secondary"
-                                    className="w-full justify-start"
-                                    disabled={!!resolved[c.id] || !box?.rel}
-                                    onClick={() => clipOccluder(c, side)}
-                                    title={box?.rel ? `Shrink the occluder in ${box.resource}` : 'no file path, run a fresh scan'}
-                                >
-                                    <Cube />
-                                    <span className="truncate font-mono">{box?.resource ?? '?'}</span>
-                                    <span className="ml-auto pl-2 text-muted-foreground">
-                                        {box ? `${box.l} x ${box.w} x ${box.h}` : ''}
-                                    </span>
-                                </Button>
+                                <div key={side} className="rounded-md border border-border bg-card px-2 py-1.5">
+                                    <div className="flex items-center gap-1.5 text-2xs">
+                                        <Cube className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden="true" />
+                                        <span className="truncate font-mono">{box?.resource ?? '?'}</span>
+                                        <span className="ml-auto pl-2 text-3xs text-muted-foreground">
+                                            {gone ? 'removed' : box ? `${box.l} x ${box.w} x ${box.h}` : ''}
+                                        </span>
+                                    </div>
+                                    <div className="mt-1 grid grid-cols-2 gap-1">
+                                        <Button
+                                            size="sm"
+                                            variant="secondary"
+                                            disabled={locked}
+                                            onClick={() => clipOccluder(c, side)}
+                                            aria-label={`Shrink the ${box?.resource ?? ''} occluder until the overlap is gone`}
+                                        >
+                                            Shrink
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            variant="destructive"
+                                            disabled={locked}
+                                            onClick={() => zeroOccluder(c, side)}
+                                            aria-label={`Remove the ${box?.resource ?? ''} occluder by zeroing its volume`}
+                                        >
+                                            <Trash />
+                                            Remove
+                                        </Button>
+                                    </div>
+                                </div>
                             )
                         })}
                     </div>

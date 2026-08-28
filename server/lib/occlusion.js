@@ -98,6 +98,29 @@ KKCT.occlusion = (() => {
     const MAX_WASTE = 0.1
     const TOUCH_EPS = 0.3
 
+    function zeroEdit(box) {
+        return {
+            index: box.bi,
+            fields: {
+                iCenterX: Math.round(box.c[0] * 4),
+                iCenterY: Math.round(box.c[1] * 4),
+                iCenterZ: Math.round(box.c[2] * 4),
+                iLength: 0,
+                iWidth: 0,
+                iHeight: 0
+            },
+            after: { c: box.c, l: 0, w: 0, h: 0 }
+        }
+    }
+
+    function zero(box) {
+        if (!box) return { ok: false, reason: 'missing occluder data' }
+        if (typeof box.bi !== 'number') {
+            return { ok: false, reason: 'this scan predates the current version, run a fresh scan first' }
+        }
+        return { ok: true, ...zeroEdit(box) }
+    }
+
     function merge(a, b) {
         if (!a || !b) return { ok: false, reason: 'missing occluder data' }
         if (typeof a.bi !== 'number' || typeof b.bi !== 'number') {
@@ -141,26 +164,11 @@ KKCT.occlusion = (() => {
         const volA = a.l * a.w * a.h
         const volB = b.l * b.w * b.h
 
-        function zeroOf(box) {
-            return {
-                index: box.bi,
-                fields: {
-                    iCenterX: Math.round(box.c[0] * 4),
-                    iCenterY: Math.round(box.c[1] * 4),
-                    iCenterZ: Math.round(box.c[2] * 4),
-                    iLength: 0,
-                    iWidth: 0,
-                    iHeight: 0
-                },
-                after: { c: box.c, l: 0, w: 0, h: 0 }
-            }
-        }
-
         if (bInA) {
-            return { ok: true, mode: 'contained', expand: null, zero: { box: 'b', ...zeroOf(b) }, waste: 0 }
+            return { ok: true, mode: 'contained', expand: null, zero: { box: 'b', ...zeroEdit(b) }, waste: 0 }
         }
         if (aInB) {
-            return { ok: true, mode: 'contained', expand: null, zero: { box: 'a', ...zeroOf(a) }, waste: 0 }
+            return { ok: true, mode: 'contained', expand: null, zero: { box: 'a', ...zeroEdit(a) }, waste: 0 }
         }
 
         const unionVol = (uMax[0] - uMin[0]) * (uMax[1] - uMin[1]) * (uMax[2] - uMin[2])
@@ -208,10 +216,10 @@ KKCT.occlusion = (() => {
                     h: Math.round(sizes[2] * 1000) / 1000
                 }
             },
-            zero: { box: winner === 'a' ? 'b' : 'a', ...zeroOf(lBox) }
+            zero: { box: winner === 'a' ? 'b' : 'a', ...zeroEdit(lBox) }
         }
     }
 
-    return { clip, merge }
+    return { clip, merge, zero }
 })()
 })()
