@@ -176,6 +176,9 @@ export default function App() {
     useNuiEvent<{ conflictId: string | null; boxes: NonNullable<Conflict['boxes']> }>('occlPreview', d => {
         if (!d?.conflictId || !d.boxes) return
         const s = useStore.getState()
+        const target = s.conflicts.find(c => c.id === d.conflictId)
+        if (!target) return
+        s.pushHistory({ id: target.id, label: target.title, action: 'occluder edit', boxes: target.boxes ?? null })
         useStore.setState({
             conflicts: s.conflicts.map(c => (c.id === d.conflictId ? { ...c, boxes: d.boxes } : c))
         })

@@ -378,6 +378,7 @@ export const useStore = create<StoreState>((set, get) => ({
             fetchNui('decide', {
                 type: 'asset',
                 conflictId: c.id,
+                group: c.id,
                 file: c.file,
                 loser: { resource: l.name, relPath: l.rel, sha1: l.fullSha1 ?? undefined },
                 winner: winner ? { resource: winner.name, sha1: winner.fullSha1 } : null
@@ -482,7 +483,14 @@ export const useStore = create<StoreState>((set, get) => ({
             if (!first) return {}
             const resolved = { ...s.resolved }
             delete resolved[first.id]
-            return { history: rest, resolved }
+            let conflicts = s.conflicts
+            if (first.boxes) {
+                conflicts = conflicts.map(c => (c.id === first.id ? { ...c, boxes: first.boxes } : c))
+                if (s.selectedId === first.id) {
+                    fetchNui('occlBoxes', { boxes: first.boxes })
+                }
+            }
+            return { history: rest, resolved, conflicts }
         })
     }
 }))

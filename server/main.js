@@ -281,6 +281,7 @@ onNet('kk_ct:mergeOccluders', d => {
         return
     }
     const by = GetPlayerName(src)
+    const group = `m_${Date.now()}_${Math.floor(Math.random() * 1e6)}`
     const boxOf = which => (which === 'a' ? d.a : d.b)
     const queue = (which, part) => {
         const box = boxOf(which)
@@ -291,6 +292,7 @@ onNet('kk_ct:mergeOccluders', d => {
             file: box.file || box.rel,
             loser: { resource: box.resource, relPath: box.rel },
             box: { index: part.index, fields: part.fields, after: part.after },
+            group,
             by
         })
         return true

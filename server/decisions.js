@@ -84,7 +84,7 @@ KKCT.decisions = (() => {
         }
         data.assets = data.assets.filter(a => !(a.file === rec.file && a.action === rec.action && a.loser && rec.loser && a.loser.resource === rec.loser.resource && a.state === 'pending'))
         data.assets.push(rec)
-        journal.push({ kind: 'asset', id })
+        journal.push({ kind: 'asset', id, group: d.group || null })
         save()
         return rec
     }
@@ -105,13 +105,20 @@ KKCT.decisions = (() => {
             save()
             return rec ? { kind: 'entity', rec } : null
         }
-        const rec = data.assets.find(a => a.id === last.id)
-        if (rec && rec.state === 'pending') {
-            data.assets = data.assets.filter(a => a.id !== last.id)
-            save()
-            return { kind: 'asset', rec }
+        const batch = [last]
+        while (last.group && journal.length && journal[journal.length - 1].kind === 'asset' && journal[journal.length - 1].group === last.group) {
+            batch.push(journal.pop())
         }
-        return null
+        let result = null
+        for (const entry of batch) {
+            const rec = data.assets.find(a => a.id === entry.id)
+            if (rec && rec.state === 'pending') {
+                data.assets = data.assets.filter(a => a.id !== entry.id)
+                result = { kind: 'asset', rec }
+            }
+        }
+        if (result) save()
+        return result
     }
 
     function samePos(a, b) {

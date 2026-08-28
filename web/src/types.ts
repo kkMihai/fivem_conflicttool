@@ -128,6 +128,7 @@ export interface HistoryEntry {
     label: string
     action: string
     at: number
+    boxes?: OccluderBox[] | null
 }
 
 export interface TransformState {
