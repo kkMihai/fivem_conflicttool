@@ -11,7 +11,7 @@ import { Legend } from '@/components/overlay/legend'
 import { Kbd } from '@/components/ui/kbd'
 import { decodeChunks, fetchNui, isEnvBrowser, useNuiEvent } from '@/lib/nui'
 import { useStore } from '@/store/use-store'
-import type { ScanPayload, ToolState, VersionInfo } from '@/types'
+import type { Conflict, ScanPayload, ToolState, VersionInfo } from '@/types'
 import { CursorClick, Warning } from '@phosphor-icons/react'
 
 export default function App() {
@@ -172,6 +172,17 @@ export default function App() {
     useNuiEvent('gizmoLost', () => useStore.setState({ transform: null }))
 
     useNuiEvent<string>('notice', msg => useStore.getState().setNotice(msg))
+
+    useNuiEvent<{ conflictId: string | null; boxes: NonNullable<Conflict['boxes']> }>('occlPreview', d => {
+        if (!d?.conflictId || !d.boxes) return
+        const s = useStore.getState()
+        useStore.setState({
+            conflicts: s.conflicts.map(c => (c.id === d.conflictId ? { ...c, boxes: d.boxes } : c))
+        })
+        if (s.selectedId === d.conflictId) {
+            fetchNui('occlBoxes', { boxes: d.boxes })
+        }
+    })
 
     useNuiEvent<'translate' | 'rotate'>('gizmoMode', mode => {
         const t = useStore.getState().transform

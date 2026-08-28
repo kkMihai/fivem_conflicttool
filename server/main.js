@@ -197,33 +197,45 @@ onNet('kk_ct:bury', d => {
 onNet('kk_ct:clipOccluder', d => {
     const src = source
     if (!allowed(src)) return
-    if (!d || !d.a || !d.b || (d.target !== 'a' && d.target !== 'b')) return
-    const clip = KKCT.occlusion.clip(d.a, d.b, d.target)
-    if (!clip.ok) {
-        emitNet('kk_ct:notice', src, clip.reason)
-        return
+    try {
+        if (!d || !d.a || !d.b || (d.target !== 'a' && d.target !== 'b')) return
+        const clip = KKCT.occlusion.clip(d.a, d.b, d.target)
+        if (!clip.ok) {
+            emitNet('kk_ct:notice', src, clip.reason)
+            return
+        }
+        const victim = d.target === 'a' ? d.a : d.b
+        if (!victim.resource || !victim.rel) {
+            emitNet('kk_ct:notice', src, 'that occluder has no file path, run a fresh scan')
+            return
+        }
+        KKCT.decisions.addAsset({
+            action: 'clip',
+            conflictId: d.conflictId || null,
+            file: victim.file || victim.rel,
+            loser: { resource: victim.resource, relPath: victim.rel },
+            box: { index: clip.index, fields: clip.fields, after: clip.after },
+            by: GetPlayerName(src)
+        })
+        const newBoxes = [d.a, d.b].map((box, i) => {
+            const side = i === 0 ? 'a' : 'b'
+            if (side !== d.target) return box
+            return { ...box, c: clip.after.c, l: clip.after.l, w: clip.after.w, h: clip.after.h }
+        })
+        emitNet('kk_ct:occlPreview', src, { conflictId: d.conflictId || null, boxes: newBoxes })
+        emitNet('kk_ct:notice', src, `Queued a shrink of the ${victim.resource} occluder on its ${clip.axis} axis by ${clip.overlap}m.`)
+        emitNet('kk_ct:decisionsMeta', src, KKCT.decisions.meta())
+        pushState(src)
+    } catch (e) {
+        console.log(`[fivem_conflicttool] clipOccluder failed: ${e.message}`)
+        emitNet('kk_ct:notice', src, 'the shrink failed on the server, check the server console')
     }
-    const victim = d.target === 'a' ? d.a : d.b
-    if (!victim.resource || !victim.rel) {
-        emitNet('kk_ct:notice', src, 'that occluder has no file path, run a fresh scan')
-        return
-    }
-    KKCT.decisions.addAsset({
-        action: 'clip',
-        conflictId: d.conflictId || null,
-        file: victim.file || victim.rel,
-        loser: { resource: victim.resource, relPath: victim.rel },
-        box: { index: clip.index, fields: clip.fields, after: clip.after },
-        by: GetPlayerName(src)
-    })
-    emitNet('kk_ct:notice', src, `Queued a shrink of the ${victim.resource} occluder on its ${clip.axis} axis by ${clip.overlap}m. Run Resolve, then restart.`)
-    emitNet('kk_ct:decisionsMeta', src, KKCT.decisions.meta())
-    pushState(src)
 })
 
 onNet('kk_ct:mergeOccluders', d => {
     const src = source
     if (!allowed(src)) return
+    try {
     if (!d || !d.a || !d.b) return
     const merge = KKCT.occlusion.merge(d.a, d.b)
     if (!merge.ok) {
@@ -252,13 +264,28 @@ onNet('kk_ct:mergeOccluders', d => {
         emitNet('kk_ct:notice', src, 'those occluders have no file paths, run a fresh scan')
         return
     }
+    const newBoxes = ['a', 'b'].map(side => {
+        const box = boxOf(side)
+        if (merge.expand && merge.expand.box === side) {
+            return { ...box, c: merge.expand.after.c, l: merge.expand.after.l, w: merge.expand.after.w, h: merge.expand.after.h }
+        }
+        if (merge.zero.box === side) {
+            return { ...box, l: 0, w: 0, h: 0 }
+        }
+        return box
+    })
+    emitNet('kk_ct:occlPreview', src, { conflictId: d.conflictId || null, boxes: newBoxes })
     if (merge.mode === 'contained') {
-        emitNet('kk_ct:notice', src, `One occluder already covers the other. Queued a zero of the ${boxOf(merge.zero.box).resource} copy. Run Resolve, then restart.`)
+        emitNet('kk_ct:notice', src, `One occluder already covers the other. Queued a zero of the ${boxOf(merge.zero.box).resource} copy.`)
     } else {
-        emitNet('kk_ct:notice', src, `Queued a merge: the ${boxOf(merge.expand.box).resource} occluder grows to the union, the ${boxOf(merge.zero.box).resource} one is zeroed. Run Resolve, then restart.`)
+        emitNet('kk_ct:notice', src, `Queued a merge: the ${boxOf(merge.expand.box).resource} occluder grows to the union, the ${boxOf(merge.zero.box).resource} one is zeroed.`)
     }
     emitNet('kk_ct:decisionsMeta', src, KKCT.decisions.meta())
     pushState(src)
+    } catch (e) {
+        console.log(`[fivem_conflicttool] mergeOccluders failed: ${e.message}`)
+        emitNet('kk_ct:notice', src, 'the merge failed on the server, check the server console')
+    }
 })
 
 onNet('kk_ct:undo', () => {

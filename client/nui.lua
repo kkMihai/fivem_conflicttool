@@ -332,6 +332,10 @@ RegisterNetEvent('kk_ct:notice', function(msg)
     nuiSend('notice', msg)
 end)
 
+RegisterNetEvent('kk_ct:occlPreview', function(data)
+    nuiSend('occlPreview', data)
+end)
+
 RegisterNetEvent('kk_ct:autoResolved', function(ids)
     nuiSend('autoResolved', ids)
 end)
