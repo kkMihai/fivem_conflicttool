@@ -17,6 +17,7 @@ const SHORTCUTS: [string, string][] = [
     ['Next conflict', 'Tab'],
     ['Keep / Remove', 'K / R'],
     ['Review / Move / Rotate', '1 / 2 / 3'],
+    ['Local or global axes', 'X'],
     ['Toggle grid snap', 'G'],
     ['Snap to ground', 'F'],
     ['Finish transform', 'Enter'],

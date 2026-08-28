@@ -12,6 +12,7 @@ const axisColor = ['text-cat-coll', 'text-cat-vanilla', 'text-cat-prop']
 export function TransformPanel() {
     const transform = useStore(s => s.transform)
     const endMove = useStore(s => s.endMove)
+    const gizmoSpace = useStore(s => s.gizmoSpace)
     if (!transform) return null
 
     const setMode = (mode: 'translate' | 'rotate') => {
@@ -62,6 +63,11 @@ export function TransformPanel() {
                         Rotate 3
                     </button>
                 </div>
+            </div>
+            <div className="mt-1.5 flex items-center gap-1.5 rounded-md border border-border bg-background px-1.5 py-1 text-3xs">
+                <span className="text-muted-foreground">axes</span>
+                <span className="font-bold">{gizmoSpace === 'local' ? 'Local' : 'Global'}</span>
+                <span className="ml-auto text-muted-foreground">press X to switch</span>
             </div>
             <div className="mt-2 grid grid-cols-3 gap-1.5">
                 {axes.map((a, i) => (

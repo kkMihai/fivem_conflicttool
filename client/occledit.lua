@@ -28,19 +28,21 @@ local function clampPos(v)
 end
 
 local function makeMatrix()
+    local co, si = cur.cz, cur.sz
     local view = DataView.ArrayBuffer(64)
-    view:SetFloat32(0, cur.cz * cur.l):SetFloat32(4, cur.sz * cur.l):SetFloat32(8, 0.0):SetFloat32(12, 0.0)
-    view:SetFloat32(16, -cur.sz * cur.w):SetFloat32(20, cur.cz * cur.w):SetFloat32(24, 0.0):SetFloat32(28, 0.0)
+    view:SetFloat32(0, co * cur.l):SetFloat32(4, si * cur.l):SetFloat32(8, 0.0):SetFloat32(12, 0.0)
+    view:SetFloat32(16, -si * cur.w):SetFloat32(20, co * cur.w):SetFloat32(24, 0.0):SetFloat32(28, 0.0)
     view:SetFloat32(32, 0.0):SetFloat32(36, 0.0):SetFloat32(40, cur.h):SetFloat32(44, 0.0)
     view:SetFloat32(48, cur.c[1]):SetFloat32(52, cur.c[2]):SetFloat32(56, cur.c[3]):SetFloat32(60, 1.0)
     return view
 end
 
 local function readMatrix(view)
+    local tx, ty, tz = view:GetFloat32(48), view:GetFloat32(52), view:GetFloat32(56)
+    cur.c[1], cur.c[2], cur.c[3] = clampPos(tx), clampPos(ty), clampPos(tz)
     local rx, ry, rz = view:GetFloat32(0), view:GetFloat32(4), view:GetFloat32(8)
     local fx, fy, fz = view:GetFloat32(16), view:GetFloat32(20), view:GetFloat32(24)
     local ux, uy, uz = view:GetFloat32(32), view:GetFloat32(36), view:GetFloat32(40)
-    local tx, ty, tz = view:GetFloat32(48), view:GetFloat32(52), view:GetFloat32(56)
     local hl = math.sqrt(rx * rx + ry * ry)
     if hl > 0.0001 then
         cur.cz, cur.sz = rx / hl, ry / hl
@@ -48,7 +50,6 @@ local function readMatrix(view)
     cur.l = clampSize(math.sqrt(rx * rx + ry * ry + rz * rz))
     cur.w = clampSize(math.sqrt(fx * fx + fy * fy + fz * fz))
     cur.h = clampSize(math.sqrt(ux * ux + uy * uy + uz * uz))
-    cur.c[1], cur.c[2], cur.c[3] = clampPos(tx), clampPos(ty), clampPos(tz)
 end
 
 function OE.ExtrudeSpan(size, sign, p)
@@ -199,6 +200,7 @@ function OE.Start(d)
         CT.Gizmo.mode = 'translate'
     end
     CT.Gizmo.pendingMode = CT.Gizmo.mode
+    CT.Gizmo.EmitSpace()
     session = session + 1
     local mySession = session
     CreateThread(function()

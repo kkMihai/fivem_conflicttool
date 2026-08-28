@@ -35,6 +35,7 @@ export function ConflictDetail() {
     const occlEditApply = useStore(s => s.occlEditApply)
     const occlEditCancel = useStore(s => s.occlEditCancel)
     const occlEditWholeBox = useStore(s => s.occlEditWholeBox)
+    const gizmoSpace = useStore(s => s.gizmoSpace)
     const preview = useStore(s => s.preview)
     const setPreview = useStore(s => s.setPreview)
     const c = conflicts.find(x => x.id === selectedId)
@@ -228,6 +229,11 @@ export function ConflictDetail() {
                                                 ) : (
                                                     <span className="text-muted-foreground">right click a face in world to extrude just that side</span>
                                                 )}
+                                            </div>
+                                            <div className="mt-1 flex items-center gap-1.5 rounded-md border border-border bg-background px-1.5 py-1 text-3xs">
+                                                <span className="text-muted-foreground">axes</span>
+                                                <span className="font-bold">{gizmoSpace === 'local' ? 'Local' : 'Global'}</span>
+                                                <span className="ml-auto text-muted-foreground">press X to switch</span>
                                             </div>
                                             <div className="mt-1 grid grid-cols-2 gap-1">
                                                 <Button size="sm" onClick={() => occlEditApply()} aria-label={`Apply the edit of occluder ${i + 1}`}>

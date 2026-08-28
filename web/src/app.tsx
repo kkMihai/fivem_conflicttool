@@ -25,6 +25,7 @@ export default function App() {
     const uiHidden = useStore(s => s.uiHidden)
     const hoverId = useStore(s => s.hoverId)
     const occlEdit = useStore(s => s.occlEdit)
+    const gizmoSpace = useStore(s => s.gizmoSpace)
     const hoverName =
         (hoverModel !== null ? conflicts.find(c => c.entity && c.entity.model === hoverModel)?.entity?.name : null) ??
         (hoverId ? conflicts.find(c => c.id === hoverId)?.title ?? null : null)
@@ -203,6 +204,8 @@ export default function App() {
 
     useNuiEvent('occlEditDone', () => useStore.setState({ occlEdit: null, occlEditLive: null }))
 
+    useNuiEvent<'local' | 'global'>('gizmoSpace', space => useStore.setState({ gizmoSpace: space }))
+
     useNuiEvent<'translate' | 'rotate' | 'scale'>('gizmoMode', mode => {
         const t = useStore.getState().transform
         if (t && mode !== 'scale') useStore.setState({ transform: { ...t, mode } })
@@ -369,6 +372,10 @@ export default function App() {
                             <span className="flex items-center gap-1.5">
                                 <Kbd>RMB</Kbd>
                                 <span>tap a face to extrude</span>
+                            </span>
+                            <span className="flex items-center gap-1.5">
+                                <Kbd>X</Kbd>
+                                <span>{gizmoSpace} axes</span>
                             </span>
                             <span className="flex items-center gap-1.5">
                                 <Kbd>Enter</Kbd>

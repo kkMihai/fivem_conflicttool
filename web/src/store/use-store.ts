@@ -66,6 +66,7 @@ interface StoreState {
     occlEdit: { id: string; target: number } | null
     occlEditLive: { l: number; w: number; h: number; face?: string | null } | null
     ctxMenu: { id: string; bx: number | null; x: number; y: number } | null
+    gizmoSpace: 'local' | 'global'
     openCtxMenu: (d: { id: string; bx: number | null; x: number; y: number }) => void
     closeCtxMenu: () => void
     editOccluder: (c: Conflict, target: number) => Promise<void>
@@ -210,6 +211,7 @@ export const useStore = create<StoreState>((set, get) => ({
     occlEdit: null,
     occlEditLive: null,
     ctxMenu: null,
+    gizmoSpace: 'global',
 
     openCtxMenu: d => set({ ctxMenu: d }),
 

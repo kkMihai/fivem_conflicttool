@@ -6,11 +6,16 @@ CT.Gizmo = {
     heldCmd = nil,
     gridSnap = false,
     snapStep = 0.1,
+    space = 'global',
     supported = nil
 }
 
 local GZ = CT.Gizmo
 local dragActive = false
+
+function GZ.EmitSpace()
+    SendNUIMessage({ action = 'gizmoSpace', data = GZ.space })
+end
 
 local function applyModeNow(mode)
     GZ.pendingMode = nil
@@ -90,6 +95,20 @@ RegisterCommand('-kkctGizmoScale', function() end, false)
 
 RegisterKeyMapping('+kkctGizmoScale', 'Conflict tool: gizmo resize mode', 'keyboard', '4')
 
+RegisterCommand('+kkctGizmoSpace', function()
+    if not CT.open or CT.typing then return end
+    if not GZ.active and not CT.OcclEdit.active then return end
+    GZ.space = GZ.space == 'local' and 'global' or 'local'
+    ExecuteCommand('+gizmoLocal')
+    GZ.EmitSpace()
+end, false)
+
+RegisterCommand('-kkctGizmoSpace', function()
+    ExecuteCommand('-gizmoLocal')
+end, false)
+
+RegisterKeyMapping('+kkctGizmoSpace', 'Conflict tool: gizmo local or global axes', 'keyboard', 'X')
+
 local function makeEntityMatrix(entity)
     local f, r, u, a = GetEntityMatrix(entity)
     local view = DataView.ArrayBuffer(64)
@@ -162,6 +181,7 @@ function GZ.Start(entity)
     GZ.entity = entity
     GZ.active = true
     GZ.pendingMode = GZ.mode
+    GZ.EmitSpace()
     CT.mode = 'transform'
     SetEntityDrawOutline(entity, true)
     if not GZ.supported then
