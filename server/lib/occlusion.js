@@ -14,6 +14,9 @@ KKCT.occlusion = (() => {
     function clip(a, b, target) {
         if (!a || !b) return { ok: false, reason: 'missing occluder data' }
         if (target !== 'a' && target !== 'b') return { ok: false, reason: 'no target picked' }
+        if (typeof a.bi !== 'number' || typeof b.bi !== 'number') {
+            return { ok: false, reason: 'this scan predates the current version, run a fresh scan first' }
+        }
         const cz = a.cz ?? 1
         const sz = a.sz ?? 0
         if (Math.abs(cz - (b.cz ?? 1)) > 0.01 || Math.abs(sz - (b.sz ?? 0)) > 0.01) {
@@ -80,7 +83,7 @@ KKCT.occlusion = (() => {
             ok: true,
             axis: AXIS_NAME[k],
             overlap: Math.round(overlap[k] * 100) / 100,
-            index: victim.bi ?? victim.idx ?? 0,
+            index: victim.bi,
             before: { c: victim.c, l: victim.l, w: victim.w, h: victim.h },
             after: {
                 c: [Math.round(worldX * 1000) / 1000, Math.round(worldY * 1000) / 1000, Math.round(worldZ * 1000) / 1000],
@@ -97,6 +100,9 @@ KKCT.occlusion = (() => {
 
     function merge(a, b) {
         if (!a || !b) return { ok: false, reason: 'missing occluder data' }
+        if (typeof a.bi !== 'number' || typeof b.bi !== 'number') {
+            return { ok: false, reason: 'this scan predates the current version, run a fresh scan first' }
+        }
         const cz = a.cz ?? 1
         const sz = a.sz ?? 0
         if (Math.abs(cz - (b.cz ?? 1)) > 0.01 || Math.abs(sz - (b.sz ?? 0)) > 0.01) {
@@ -137,7 +143,7 @@ KKCT.occlusion = (() => {
 
         function zeroOf(box) {
             return {
-                index: box.bi ?? 0,
+                index: box.bi,
                 fields: {
                     iCenterX: Math.round(box.c[0] * 4),
                     iCenterY: Math.round(box.c[1] * 4),

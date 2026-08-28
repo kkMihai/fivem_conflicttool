@@ -13,6 +13,7 @@ KKCT.scanner = (() => {
 
     let scanning = false
     let lastScan = null
+    const PARSE_VERSION = 2
     let cacheDir = null
     let rootDir = null
     let hashCache = new Map()
@@ -41,6 +42,13 @@ KKCT.scanner = (() => {
         rootDir = root
         cacheDir = path.join(root, 'data', 'cache')
         fs.mkdirSync(cacheDir, { recursive: true })
+        try {
+            for (const name of fs.readdirSync(cacheDir)) {
+                if (name.endsWith('.json') && name !== 'hashes.json' && !name.endsWith(`.v${PARSE_VERSION}.json`)) {
+                    fs.unlinkSync(path.join(cacheDir, name))
+                }
+            }
+        } catch {}
         try {
             const hp = path.join(cacheDir, 'hashes.json')
             if (fs.existsSync(hp)) {
@@ -86,7 +94,7 @@ KKCT.scanner = (() => {
     function cachedParse(hash, kind, getBuf) {
         const mem = parseMem.get(hash)
         if (mem !== undefined) return mem
-        const cp = path.join(cacheDir, `${hash}.json`)
+        const cp = path.join(cacheDir, `${hash}.v${PARSE_VERSION}.json`)
         try {
             const parsed = JSON.parse(fs.readFileSync(cp, 'utf8'))
             parseMem.set(hash, parsed)
