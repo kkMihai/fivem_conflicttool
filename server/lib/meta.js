@@ -123,7 +123,7 @@ KKCT.meta = (() => {
         function readStructAt(structHash, abs, depth) {
             const info = structures.get(structHash)
             if (!info || depth > 6) return null
-            const obj = { __struct: structHash }
+            const obj = { __struct: structHash, __abs: abs }
             for (const e of info.entries) {
                 const fname = fieldNameByHash.get(e.nameHash)
                 if (!fname) continue
@@ -191,7 +191,17 @@ KKCT.meta = (() => {
             return readStructAt(structHash, b.ptr, 0)
         }
 
-        return { data, structures, blocks, findBlock, readRoot, readStructAt, T }
+        function fieldOffset(structHash, name) {
+            const info = structures.get(structHash)
+            if (!info) return null
+            const h = KKCT.joaatCase(name)
+            for (const e of info.entries) {
+                if (e.nameHash === h) return { offset: e.offset, type: e.type }
+            }
+            return null
+        }
+
+        return { data, structures, blocks, findBlock, readRoot, readStructAt, fieldOffset, T }
     }
 
     return { parse, T }

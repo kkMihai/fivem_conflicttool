@@ -80,6 +80,73 @@ KKCT.ymap = (() => {
         }
     }
 
-    return { parse }
+    const EPS = 0.02
+
+    function near(a, b) {
+        return Math.abs(a[0] - b[0]) < EPS && Math.abs(a[1] - b[1]) < EPS && Math.abs(a[2] - b[2]) < EPS
+    }
+
+    function patch(buf, edits) {
+        if (!edits || !edits.length) throw new Error('no edits')
+        const res = KKCT.rsc7.parse(buf)
+        const data = Buffer.from(res.data)
+        const meta = KKCT.meta.parse(data)
+        const md = meta.readRoot(KKCT.joaatCase('CMapData'))
+        if (!md) throw new Error('no CMapData block')
+
+        const applied = []
+        const missed = []
+
+        for (const edit of edits) {
+            if (edit.kind === 'entityPos') {
+                const list = Array.isArray(md.entities) ? md.entities : []
+                const hit = list.find(e => e && e.position && e.__abs && (e.archetypeName >>> 0) === (edit.archetype >>> 0) && near(e.position, edit.from))
+                if (!hit) {
+                    missed.push(edit)
+                    continue
+                }
+                const f = meta.fieldOffset(hit.__struct, 'position')
+                if (!f || (f.type !== meta.T.VEC3 && f.type !== meta.T.VEC4)) {
+                    missed.push(edit)
+                    continue
+                }
+                const at = hit.__abs + f.offset
+                data.writeFloatLE(edit.to[0], at)
+                data.writeFloatLE(edit.to[1], at + 4)
+                data.writeFloatLE(edit.to[2], at + 8)
+                applied.push(edit)
+                continue
+            }
+
+            if (edit.kind === 'boxOccluder') {
+                const list = Array.isArray(md.boxOccluders) ? md.boxOccluders : []
+                const hit = list[edit.index]
+                if (!hit || !hit.__abs) {
+                    missed.push(edit)
+                    continue
+                }
+                let ok = true
+                for (const [name, value] of Object.entries(edit.fields)) {
+                    const f = meta.fieldOffset(hit.__struct, name)
+                    if (!f || f.type !== meta.T.S16) {
+                        ok = false
+                        break
+                    }
+                    const v = Math.max(-32768, Math.min(32767, Math.round(value)))
+                    data.writeInt16LE(v, hit.__abs + f.offset)
+                }
+                if (ok) applied.push(edit)
+                else missed.push(edit)
+                continue
+            }
+
+            missed.push(edit)
+        }
+
+        if (!applied.length) throw new Error('no edit matched anything in this file')
+        return { buf: KKCT.rsc7.write(res, data), applied: applied.length, missed: missed.length }
+    }
+
+    return { parse, patch }
 })()
 })()
