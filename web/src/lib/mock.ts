@@ -82,15 +82,17 @@ export const mockConflicts: Conflict[] = [
         pos: [-851.5, -348.75, 40.25],
         autoRes: null,
         resources: [
-            { name: 'citymaps_townhall', rel: 'stream/bh1_occl_05.ymap', size: 0, sha1: '', status: 'occluder here' },
-            { name: 'freemode_hills', rel: 'stream/lr_sc1_occl_00.ymap', size: 0, sha1: '', status: 'occluder here too' }
+            { name: 'citymaps_townhall', rel: 'stream/bh1_occl_05.ymap', size: 0, sha1: '', status: 'occluder 1' },
+            { name: 'freemode_hills', rel: 'stream/lr_sc1_occl_00.ymap', size: 0, sha1: '', status: 'occluder 2' },
+            { name: 'downtown_offices', rel: 'stream/dt1_occl_02.ymap', size: 0, sha1: '', status: 'occluder 3' }
         ],
         entity: null,
         target: null,
         near: [],
         boxes: [
             { c: [-851.5, -348.75, 40.25], l: 5.5, w: 16.5, h: 7.75, cz: 0.891, sz: -0.454, bi: 0, resource: 'citymaps_townhall', rel: 'stream/bh1_occl_05.ymap', file: 'bh1_occl_05.ymap' },
-            { c: [-847.5, -350.75, 40.25], l: 6, w: 16.5, h: 7.75, cz: 0.891, sz: -0.454, bi: 3, resource: 'freemode_hills', rel: 'stream/lr_sc1_occl_00.ymap', file: 'lr_sc1_occl_00.ymap' }
+            { c: [-847.5, -350.75, 40.25], l: 6, w: 16.5, h: 7.75, cz: 0.891, sz: -0.454, bi: 3, resource: 'freemode_hills', rel: 'stream/lr_sc1_occl_00.ymap', file: 'lr_sc1_occl_00.ymap' },
+            { c: [-843.25, -352.5, 40.25], l: 4.75, w: 16.5, h: 7.75, cz: 0.891, sz: -0.454, bi: 7, resource: 'downtown_offices', rel: 'stream/dt1_occl_02.ymap', file: 'dt1_occl_02.ymap' }
         ],
         explain: {
             summary: 'Two box occluders from citymaps_townhall and freemode_hills overlap. Overlapping occluders can make geometry pop in and out or disappear.',

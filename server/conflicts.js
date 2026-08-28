@@ -315,54 +315,78 @@ KKCT.conflicts = (() => {
             }
             return list
         }
-        let occlPairCount = 0
-        for (let i = 0; i < allOccluders.length && occlPairCount < 100; i++) {
-            const a = allOccluders[i]
-            const neighbors = occlNeighbors(i)
-            for (const j of neighbors) {
-                if (j <= i) continue
-                const b = allOccluders[j]
-                if (a.resource === b.resource) continue
-                const dx = a.c[0] - b.c[0], dy = a.c[1] - b.c[1]
-                const rr = a.rad + b.rad
-                if (dx * dx + dy * dy > rr * rr) continue
-                if (Math.abs(a.c[2] - b.c[2]) > (a.h + b.h) / 2) continue
-                occlPairCount++
-                const near = neighbors
-                    .filter(oi => oi !== i)
-                    .map(oi => ({ label: `MODEL #${oi + 1}`, dist: Math.round(dist3(allOccluders[oi].c, a.c) * 10) / 10 }))
-                    .filter(n => n.dist > 0 && n.dist < 150)
-                    .sort((x, y) => x.dist - y.dist)
-                    .slice(0, 4)
-                out.push({
-                    id: nid('c_occl'),
-                    key: `occl|${[a.file, b.file].sort().join('+')}|${[a.resource, b.resource].sort().join('+')}|${Math.round(a.c[0])}_${Math.round(a.c[1])}`,
-                    cat: 'occl',
-                    sev: 'medium',
-                    kind: 'occl-overlap',
-                    title: `box occluder overlap`,
-                    sub: `${a.resource} vs ${b.resource}`,
-                    file: `${a.file} + ${b.file}`,
-                    badges: ['overlapping occluders'],
-                    vanilla: false,
-                    pos: a.c,
-                    autoRes: null,
-                    resources: [
-                        { name: a.resource, rel: a.rel, size: 0, sha1: '', status: 'occluder here' },
-                        { name: b.resource, rel: b.rel, size: 0, sha1: '', status: 'occluder here too' }
-                    ],
-                    entity: null,
-                    target: null,
-                    near,
-                    boxes: [a, b],
-                    explain: {
-                        summary: `Two box occluders from ${a.resource} and ${b.resource} overlap. Overlapping occluders can make geometry pop in and out or disappear.`,
-                        note: 'Occluders hide whatever is behind them. Only one should cover a given volume.'
-                    },
-                    suggested: { action: 'keep', losers: [] }
-                })
-                break
+        const occlParent = allOccluders.map((_, i) => i)
+        const occlFind = i => {
+            while (occlParent[i] !== i) {
+                occlParent[i] = occlParent[occlParent[i]]
+                i = occlParent[i]
             }
+            return i
+        }
+        const occlTouch = (a, b) => {
+            const dx = a.c[0] - b.c[0], dy = a.c[1] - b.c[1]
+            const rr = a.rad + b.rad
+            if (dx * dx + dy * dy > rr * rr) return false
+            return Math.abs(a.c[2] - b.c[2]) <= (a.h + b.h) / 2
+        }
+        for (let i = 0; i < allOccluders.length; i++) {
+            for (const j of occlNeighbors(i)) {
+                if (j <= i) continue
+                if (occlTouch(allOccluders[i], allOccluders[j])) {
+                    occlParent[occlFind(j)] = occlFind(i)
+                }
+            }
+        }
+        const occlClusters = new Map()
+        for (let i = 0; i < allOccluders.length; i++) {
+            const r = occlFind(i)
+            if (!occlClusters.has(r)) occlClusters.set(r, [])
+            occlClusters.get(r).push(i)
+        }
+        let occlCount = 0
+        for (const members of occlClusters.values()) {
+            if (occlCount >= 100) break
+            if (members.length < 2) continue
+            const resSet = new Set(members.map(i => allOccluders[i].resource))
+            if (resSet.size < 2) continue
+            occlCount++
+            const cluster = members.slice(0, 12).map(i => allOccluders[i])
+            const resNames = [...resSet]
+            const anchor = cluster[0]
+            const near = occlNeighbors(members[0])
+                .filter(oi => !members.includes(oi))
+                .map(oi => ({ label: `MODEL #${oi + 1}`, dist: Math.round(dist3(allOccluders[oi].c, anchor.c) * 10) / 10 }))
+                .filter(n => n.dist > 0 && n.dist < 150)
+                .sort((x, y) => x.dist - y.dist)
+                .slice(0, 4)
+            const badges = ['overlapping occluders']
+            if (cluster.length > 2) badges.push(`${cluster.length} boxes`)
+            if (members.length > 12) badges.push(`${members.length - 12} more not shown`)
+            const subNames = resNames.slice(0, 3).join(' vs ') + (resNames.length > 3 ? ` +${resNames.length - 3}` : '')
+            out.push({
+                id: nid('c_occl'),
+                key: `occl|${cluster.map(o => `${o.resource}#${o.bi}`).sort().join('+')}`,
+                cat: 'occl',
+                sev: 'medium',
+                kind: 'occl-overlap',
+                title: `box occluder overlap`,
+                sub: subNames,
+                file: [...new Set(cluster.map(o => o.file))].join(' + '),
+                badges,
+                vanilla: false,
+                pos: anchor.c,
+                autoRes: null,
+                resources: cluster.map((o, i) => ({ name: o.resource, rel: o.rel, size: 0, sha1: '', status: `occluder ${i + 1}` })),
+                entity: null,
+                target: null,
+                near,
+                boxes: cluster,
+                explain: {
+                    summary: `${cluster.length} box occluders from ${subNames} overlap. Overlapping occluders can make geometry pop in and out or disappear.`,
+                    note: 'Occluders hide whatever is behind them. Only one should cover a given volume.'
+                },
+                suggested: { action: 'keep', losers: [] }
+            })
         }
 
         const archMap = new Map()

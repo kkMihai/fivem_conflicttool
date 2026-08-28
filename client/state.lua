@@ -33,6 +33,14 @@ CT = {
     }
 }
 
+CT.occlPalette = {
+    CT.colors.a,
+    CT.colors.b,
+    CT.colors.vanilla,
+    CT.colors.occl,
+    CT.colors.coll
+}
+
 function CT.CamForward()
     if CT.Freecam.active then
         return CT.Freecam.Forward()

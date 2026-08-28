@@ -9,6 +9,8 @@ import { fmtBytes } from '@/lib/utils'
 const catLabel: Record<string, string> = { asset: 'Asset', prop: 'Prop', occl: 'Occluder', coll: 'Collision' }
 const sevLabel: Record<string, string> = { cosmetic: 'Cosmetic', medium: 'Medium', high: 'High' }
 
+const OCCL_DOTS = ['bg-res-a', 'bg-res-b', 'bg-cat-vanilla', 'bg-cat-occl', 'bg-cat-coll']
+
 const previewLabels: Record<string, [string, string]> = {
     'spatial-dup': ['Both copies', 'Without copy'],
     'entity-moved': ['Moved (now)', 'Original spot'],
@@ -185,15 +187,14 @@ export function ConflictDetail() {
                             <Swap />
                             Merge into one occluder
                         </Button>
-                        {(['a', 'b'] as const).map((side, i) => {
-                            const box = c.boxes![i]
+                        {c.boxes!.map((box, i) => {
                             const gone = !!box && box.l === 0 && box.w === 0 && box.h === 0
                             const locked = !!resolved[c.id] || !box?.rel || gone
                             return (
-                                <div key={side} className="rounded-md border border-border bg-card px-2 py-1.5">
+                                <div key={i} className="rounded-md border border-border bg-card px-2 py-1.5">
                                     <div className="flex items-center gap-1.5 text-2xs">
                                         <span
-                                            className={cn('h-2 w-2 shrink-0 rounded-full', side === 'a' ? 'bg-res-a' : 'bg-res-b')}
+                                            className={cn('h-2 w-2 shrink-0 rounded-full', OCCL_DOTS[i % OCCL_DOTS.length])}
                                             aria-hidden="true"
                                         />
                                         <Cube className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden="true" />
@@ -207,8 +208,8 @@ export function ConflictDetail() {
                                             size="sm"
                                             variant="secondary"
                                             disabled={locked}
-                                            onClick={() => clipOccluder(c, side)}
-                                            aria-label={`Shrink the ${box?.resource ?? ''} occluder until the overlap is gone`}
+                                            onClick={() => clipOccluder(c, i)}
+                                            aria-label={`Shrink occluder ${i + 1} in ${box?.resource ?? ''} until the overlaps are gone`}
                                         >
                                             Shrink
                                         </Button>
@@ -216,8 +217,8 @@ export function ConflictDetail() {
                                             size="sm"
                                             variant="destructive"
                                             disabled={locked}
-                                            onClick={() => zeroOccluder(c, side)}
-                                            aria-label={`Remove the ${box?.resource ?? ''} occluder by zeroing its volume`}
+                                            onClick={() => zeroOccluder(c, i)}
+                                            aria-label={`Remove occluder ${i + 1} in ${box?.resource ?? ''} by zeroing its volume`}
                                         >
                                             <Trash />
                                             Remove
