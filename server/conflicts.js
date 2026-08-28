@@ -57,6 +57,16 @@ KKCT.conflicts = (() => {
         const allOccluders = []
         const uniqueEntities = []
         const ytypWinners = []
+        const archPos = new Map()
+
+        for (const [, entries] of index) {
+            for (const entry of entries) {
+                if (entry.ext !== 'ymap' || !entry.parsed) continue
+                for (const e of entry.parsed.entities || []) {
+                    if (!archPos.has(e.a)) archPos.set(e.a, e.p)
+                }
+            }
+        }
 
         for (const [key, entries] of index) {
             const sorted = [...entries].sort((a, b) => a.order - b.order)
@@ -108,6 +118,7 @@ KKCT.conflicts = (() => {
             let pos = null
             if (ext === 'ymap') pos = ymapPos(winner.parsed || (losers.find(l => l.parsed) || {}).parsed)
             else if (ext === 'ybn' && winner.parsed) pos = [(winner.parsed.bmin[0] + winner.parsed.bmax[0]) / 2, (winner.parsed.bmin[1] + winner.parsed.bmax[1]) / 2, (winner.parsed.bmin[2] + winner.parsed.bmax[2]) / 2]
+            else if (ext === 'ydr' || ext === 'ydd' || ext === 'yft') pos = archPos.get(KKCT.joaat(key.replace(/\.[^.]+$/, ''))) || null
 
             const summary = identical
                 ? `${sorted.length} resources ship an identical copy of ${key}. Only one is needed, the rest waste memory and load time.`
@@ -389,7 +400,7 @@ KKCT.conflicts = (() => {
                 file: sorted.map(e => e.file).join(' + '),
                 badges,
                 vanilla: false,
-                pos: null,
+                pos: archPos.get(hash) || null,
                 autoRes: null,
                 resources: sorted.map((e, i) => ({
                     name: e.resource,

@@ -72,6 +72,8 @@ interface StoreState {
 
 const catColorIdx = (c: Conflict): number => (c.vanilla ? 2 : 0)
 
+let markerIds = new Set<string>()
+
 export const useStore = create<StoreState>((set, get) => ({
     visible: isEnvBrowser(),
     version: isEnvBrowser()
@@ -267,6 +269,7 @@ export const useStore = create<StoreState>((set, get) => ({
         const idx = list.findIndex(c => c.id === id)
         const c = get().conflicts.find(x => x.id === id)
         if (!c) return
+        if (c.pos && !markerIds.has(id)) get().pushMarkers()
         const label = `[${idx + 1}/${list.length}] ${c.title} · ${c.sev.toUpperCase()} · ${c.cat.toUpperCase()}`
         fetchNui('selectConflict', { id, index: idx + 1, label, pos: c.pos, teleport: teleport && !!c.pos })
         fetchNui('clearCollision')
@@ -399,11 +402,16 @@ export const useStore = create<StoreState>((set, get) => ({
     },
 
     pushMarkers: () => {
-        const list = get().filtered()
-        const markers = list
-            .filter(c => c.pos)
-            .slice(0, 1500)
-            .map(c => ({ id: c.id, x: c.pos![0], y: c.pos![1], z: c.pos![2], cat: c.cat, ci: catColorIdx(c) }))
+        const s = get()
+        const list = s.filtered()
+        const shown = list.filter(c => c.pos).slice(0, 1500)
+        const sel = s.selectedId
+        if (sel && !shown.some(c => c.id === sel)) {
+            const c = s.conflicts.find(x => x.id === sel && x.pos)
+            if (c) shown.push(c)
+        }
+        markerIds = new Set(shown.map(c => c.id))
+        const markers = shown.map(c => ({ id: c.id, x: c.pos![0], y: c.pos![1], z: c.pos![2], cat: c.cat, ci: catColorIdx(c) }))
         fetchNui('setMarkers', { markers, total: list.length })
     },
 
