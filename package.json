@@ -2,7 +2,6 @@
   "name": "fivem_conflicttool",
   "version": "1.0.0",
   "private": true,
-  "type": "module",
   "description": "in-game map conflict scanner and resolver for FiveM",
   "author": "kkMihai",
   "license": "GPL-3.0-only",
