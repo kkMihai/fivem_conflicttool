@@ -65,7 +65,7 @@ KKCT.scanner = (() => {
         } catch {}
     }
 
-    async function walk(dir, out, depth) {
+    async function walk(dir, out, depth, metas) {
         if (depth > 12) return
         let entries
         try {
@@ -76,12 +76,15 @@ KKCT.scanner = (() => {
         for (const e of entries) {
             if (e.isDirectory()) {
                 if (!SKIP_DIRS.has(e.name.toLowerCase())) {
-                    await walk(path.join(dir, e.name), out, depth + 1)
+                    await walk(path.join(dir, e.name), out, depth + 1, metas)
                 }
             } else {
-                const ext = path.extname(e.name).toLowerCase()
+                const lower = e.name.toLowerCase()
+                const ext = path.extname(lower)
                 if (EXTS.has(ext)) {
                     out.push(path.join(dir, e.name))
+                } else if (metas && KKCT.assetkind.META_FILES.has(lower)) {
+                    metas.push(path.join(dir, e.name))
                 }
             }
         }
@@ -133,9 +136,12 @@ KKCT.scanner = (() => {
             const files = []
             let walked = 0
             progress({ phase: 'walk', resource: '', current: 0, total: resources.length })
+            const kinds = KKCT.assetkind.create()
             const walkResults = await pmap(resources, 8, async r => {
                 const found = []
-                await walk(r.path, found, 0)
+                const metas = []
+                await walk(r.path, found, 0, metas)
+                kinds.addResource(r.name, metas, r.path)
                 walked++
                 if (walked % 10 === 0) {
                     progress({ phase: 'walk', resource: r.name, current: walked, total: resources.length })
@@ -243,7 +249,7 @@ KKCT.scanner = (() => {
             const modPacks = new Set(files.map(f => f.resource))
 
             progress({ phase: 'detect', resource: '', current: 0, total: 0 })
-            const conflicts = KKCT.conflicts.detect(index, resources)
+            const conflicts = KKCT.conflicts.detect(index, resources, kinds)
             if (KKCT.ignores) KKCT.ignores.markScan(conflicts)
 
             lastScan = {

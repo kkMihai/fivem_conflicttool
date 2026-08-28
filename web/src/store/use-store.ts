@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Backup, Category, Conflict, DecisionsMeta, HistoryEntry, ResourceWeight, ScanMeta, TransformState, VersionInfo } from '@/types'
+import type { AssetKind, Backup, Category, Conflict, DecisionsMeta, HistoryEntry, ResourceWeight, ScanMeta, TransformState, VersionInfo } from '@/types'
 import { fetchNui, isEnvBrowser } from '@/lib/nui'
 import { extOf } from '@/lib/utils'
 import { mockConflicts, mockState, mockWeights } from '@/lib/mock'
@@ -23,6 +23,7 @@ interface StoreState {
     showIgnored: boolean
     onlyNew: boolean
     hiddenExts: Record<string, true>
+    hiddenKinds: Record<string, true>
     preview: 'a' | 'b' | null
     resourceFilter: string | null
     selectedId: string | null
@@ -56,6 +57,8 @@ interface StoreState {
     setOnlyNew: (v: boolean) => void
     toggleExt: (ext: string) => void
     showAllExts: () => void
+    toggleKind: (kind: AssetKind) => void
+    showAllKinds: () => void
     toggleIgnore: (c: Conflict) => void
     clipOccluder: (c: Conflict, target: number) => void
     mergeOccluders: (c: Conflict) => void
@@ -111,6 +114,7 @@ export const useStore = create<StoreState>((set, get) => ({
     showIgnored: false,
     onlyNew: false,
     hiddenExts: {},
+    hiddenKinds: {},
     preview: null,
     resourceFilter: null,
     selectedId: null,
@@ -256,6 +260,21 @@ export const useStore = create<StoreState>((set, get) => ({
         get().pushMarkers()
     },
 
+    toggleKind: kind => {
+        set(s => {
+            const next = { ...s.hiddenKinds }
+            if (next[kind]) delete next[kind]
+            else next[kind] = true
+            return { hiddenKinds: next }
+        })
+        get().pushMarkers()
+    },
+
+    showAllKinds: () => {
+        set({ hiddenKinds: {} })
+        get().pushMarkers()
+    },
+
     toggleIgnore: c => {
         const on = !c.ignored
         fetchNui('ignoreConflict', { key: c.key, on, title: c.title, cat: c.cat })
@@ -332,10 +351,11 @@ export const useStore = create<StoreState>((set, get) => ({
     },
 
     filtered: () => {
-        const { conflicts, tab, search, showVanilla, showIgnored, onlyNew, resourceFilter, hiddenExts } = get()
+        const { conflicts, tab, search, showVanilla, showIgnored, onlyNew, resourceFilter, hiddenExts, hiddenKinds } = get()
         const q = search.trim().toLowerCase()
         return conflicts.filter(c => {
             if (hiddenExts[extOf(c.file)]) return false
+            if (hiddenKinds[c.akind ?? 'other']) return false
             if (tab !== 'all' && c.cat !== tab) return false
             if (!showIgnored && c.ignored) return false
             if (onlyNew && !c.isNew) return false

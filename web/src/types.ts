@@ -1,5 +1,7 @@
 export type Category = 'asset' | 'prop' | 'occl' | 'coll'
 
+export type AssetKind = 'vehicle' | 'ped' | 'weapon' | 'map' | 'prop' | 'other'
+
 export interface ConflictResource {
     name: string
     rel: string
@@ -24,6 +26,7 @@ export interface Conflict {
     ignored?: boolean
     isNew?: boolean
     cat: Category
+    akind?: AssetKind
     sev: 'cosmetic' | 'medium' | 'high'
     kind: string
     title: string

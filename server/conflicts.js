@@ -48,7 +48,7 @@ KKCT.conflicts = (() => {
         return Math.sqrt(dx * dx + dy * dy + dz * dz)
     }
 
-    function detect(index, resources) {
+    function detect(index, resources, kinds) {
         const out = []
         let seq = 0
         const nid = p => `${p}_${++seq}`
@@ -450,6 +450,18 @@ KKCT.conflicts = (() => {
                 },
                 suggested: { action: 'keep', losers: [] }
             })
+        }
+
+        const kindRank = { vehicle: 0, ped: 1, weapon: 2, map: 3, prop: 4, other: 5 }
+        for (const c of out) {
+            let best = 'other'
+            if (kinds) {
+                for (const r of c.resources || []) {
+                    const got = kinds.classify(r.name, r.rel || c.file)
+                    if (kindRank[got] < kindRank[best]) best = got
+                }
+            }
+            c.akind = best
         }
 
         const order = { coll: 0, occl: 1, asset: 2, prop: 3 }

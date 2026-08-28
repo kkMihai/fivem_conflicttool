@@ -43,6 +43,7 @@ require(path.join(root, 'server', 'lib', 'meta.js'))
 require(path.join(root, 'server', 'lib', 'ymap.js'))
 require(path.join(root, 'server', 'lib', 'ytyp.js'))
 require(path.join(root, 'server', 'lib', 'ybn.js'))
+require(path.join(root, 'server', 'lib', 'assetkind.js'))
 require(path.join(root, 'server', 'lib', 'names.js'))
 require(path.join(root, 'server', 'scanner.js'))
 require(path.join(root, 'server', 'conflicts.js'))
@@ -63,6 +64,9 @@ console.log(`files: ${scan.fileCount}, resources: ${scan.resourceCount}, modPack
 console.log(`parse errors: ${scan.parseErrors.length}`)
 for (const e of scan.parseErrors.slice(0, 10)) console.log(`  ERR ${e.resource}/${e.file}: ${e.msg}`)
 console.log(`conflicts: ${scan.conflicts.length}`)
+const kindHist = new Map()
+for (const c of scan.conflicts) kindHist.set(c.akind ?? 'none', (kindHist.get(c.akind ?? 'none') ?? 0) + 1)
+console.log(`by asset kind: ${[...kindHist.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(', ')}`)
 const byCat = {}
 for (const c of scan.conflicts) byCat[c.cat] = (byCat[c.cat] || 0) + 1
 console.log('by category:', byCat)

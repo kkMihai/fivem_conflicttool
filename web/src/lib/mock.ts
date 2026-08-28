@@ -1,4 +1,4 @@
-import type { Conflict, ResourceWeight, ScanMeta, ToolState } from '@/types'
+import type { Conflict, ResourceWeight, ScanMeta, ToolState, AssetKind } from '@/types'
 
 export const mockWeights: ResourceWeight[] = [
     { name: 'citymaps_gasstation', bytes: 512 * 1024 * 1024, files: 1240, over: [{ rel: 'stream/gas_main.ydr', size: 21 * 1024 * 1024 }, { rel: 'stream/gas_props.ytd', size: 18 * 1024 * 1024 }] },
@@ -13,6 +13,7 @@ export const mockWeights: ResourceWeight[] = [
 export const mockConflicts: Conflict[] = [
     {
         id: 'c_coll_1',
+        akind: 'map',
         key: 'dup|sc1_13_0.ybn|citymaps_gasstation+citymaps_tunershop',
         isNew: true,
         cat: 'coll',
@@ -40,6 +41,7 @@ export const mockConflicts: Conflict[] = [
     },
     {
         id: 'c_occl_2',
+        akind: 'map',
         key: 'dup|bh1_occl_05.ymap|freemode_hills+citymaps_townhall',
         cat: 'occl',
         sev: 'medium',
@@ -70,6 +72,7 @@ export const mockConflicts: Conflict[] = [
     },
     {
         id: 'c_occl_3',
+        akind: 'map',
         key: 'occl|bh1_occl_05.ymap+lr_sc1_occl_00.ymap|citymaps_townhall+freemode_hills',
         cat: 'occl',
         sev: 'medium',
@@ -102,6 +105,7 @@ export const mockConflicts: Conflict[] = [
     },
     ...Array.from({ length: 60 }, (_, i): Conflict => ({
         id: `c_prop_${i + 10}`,
+        akind: (i % 3 === 0 ? 'vehicle' : i % 3 === 1 ? 'ped' : 'prop') as AssetKind,
         key: `mock-prop|${i}`,
         isNew: i < 4,
         ignored: i === 5 || i === 11,
