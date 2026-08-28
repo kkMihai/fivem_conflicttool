@@ -1,6 +1,11 @@
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 
+export function extOf(file: string): string {
+    const m = /\.([a-z0-9]+)/i.exec(file || '')
+    return m ? m[1].toLowerCase() : 'other'
+}
+
 export function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs))
 }

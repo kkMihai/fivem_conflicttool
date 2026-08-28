@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { Backup, Category, Conflict, DecisionsMeta, HistoryEntry, ResourceWeight, ScanMeta, TransformState, VersionInfo } from '@/types'
 import { fetchNui, isEnvBrowser } from '@/lib/nui'
+import { extOf } from '@/lib/utils'
 import { mockConflicts, mockState, mockWeights } from '@/lib/mock'
 
 export type Tab = 'all' | Category
@@ -21,6 +22,7 @@ interface StoreState {
     showVanilla: boolean
     showIgnored: boolean
     onlyNew: boolean
+    hiddenExts: Record<string, true>
     preview: 'a' | 'b' | null
     resourceFilter: string | null
     selectedId: string | null
@@ -52,6 +54,8 @@ interface StoreState {
     setShowVanilla: (v: boolean) => void
     setShowIgnored: (v: boolean) => void
     setOnlyNew: (v: boolean) => void
+    toggleExt: (ext: string) => void
+    showAllExts: () => void
     toggleIgnore: (c: Conflict) => void
     toggleChecked: (id: string, shift?: boolean) => void
     clearChecked: () => void
@@ -95,6 +99,7 @@ export const useStore = create<StoreState>((set, get) => ({
     showVanilla: true,
     showIgnored: false,
     onlyNew: false,
+    hiddenExts: {},
     preview: null,
     resourceFilter: null,
     selectedId: null,
@@ -165,6 +170,21 @@ export const useStore = create<StoreState>((set, get) => ({
 
     setOnlyNew: v => {
         set({ onlyNew: v })
+        get().pushMarkers()
+    },
+
+    toggleExt: ext => {
+        set(s => {
+            const next = { ...s.hiddenExts }
+            if (next[ext]) delete next[ext]
+            else next[ext] = true
+            return { hiddenExts: next }
+        })
+        get().pushMarkers()
+    },
+
+    showAllExts: () => {
+        set({ hiddenExts: {} })
         get().pushMarkers()
     },
 
@@ -244,9 +264,10 @@ export const useStore = create<StoreState>((set, get) => ({
     },
 
     filtered: () => {
-        const { conflicts, tab, search, showVanilla, showIgnored, onlyNew, resourceFilter } = get()
+        const { conflicts, tab, search, showVanilla, showIgnored, onlyNew, resourceFilter, hiddenExts } = get()
         const q = search.trim().toLowerCase()
         return conflicts.filter(c => {
+            if (hiddenExts[extOf(c.file)]) return false
             if (tab !== 'all' && c.cat !== tab) return false
             if (!showIgnored && c.ignored) return false
             if (onlyNew && !c.isNew) return false

@@ -1,12 +1,12 @@
 import { useRef } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { CaretDown, FunnelSimple, MagnifyingGlass, X } from '@phosphor-icons/react'
+import { CaretDown, Files, FunnelSimple, MagnifyingGlass, X } from '@phosphor-icons/react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { ConflictRow } from '@/components/conflicts/conflict-row'
 import { useStore, type Tab } from '@/store/use-store'
-import { cn } from '@/lib/utils'
+import { cn, extOf } from '@/lib/utils'
 
 const TABS: { id: Tab; label: string }[] = [
     { id: 'all', label: 'All' },
@@ -27,6 +27,9 @@ export function ConflictList() {
     const select = useStore(s => s.select)
     const resourceFilter = useStore(s => s.resourceFilter)
     const setResourceFilter = useStore(s => s.setResourceFilter)
+    const hiddenExts = useStore(s => s.hiddenExts)
+    const toggleExt = useStore(s => s.toggleExt)
+    const showAllExts = useStore(s => s.showAllExts)
     const scanMeta = useStore(s => s.scanMeta)
     useStore(s => s.showIgnored)
     useStore(s => s.onlyNew)
@@ -50,6 +53,13 @@ export function ConflictList() {
     })
 
     const resources = [...new Set(conflicts.flatMap(c => c.resources.map(r => r.name)))].sort()
+    const extCounts = new Map<string, number>()
+    for (const c of conflicts) {
+        const e = extOf(c.file)
+        extCounts.set(e, (extCounts.get(e) ?? 0) + 1)
+    }
+    const exts = [...extCounts.entries()].sort((a, b) => b[1] - a[1])
+    const hiddenList = exts.filter(([e]) => hiddenExts[e]).map(([e]) => e)
     const counts = scanMeta?.counts
 
     return (
@@ -88,7 +98,47 @@ export function ConflictList() {
                         ))}
                     </DropdownMenuContent>
                 </DropdownMenu>
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            title="Filter by file type"
+                            aria-label={hiddenList.length ? `Filter by file type, ${hiddenList.length} hidden` : 'Filter by file type'}
+                            className={cn('shrink-0', hiddenList.length > 0 && 'text-primary')}
+                        >
+                            <Files aria-hidden="true" />
+                            <CaretDown className="h-3 w-3" aria-hidden="true" />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="max-h-72 overflow-y-auto">
+                        <DropdownMenuItem onSelect={e => { e.preventDefault(); showAllExts() }}>Show all file types</DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        {exts.map(([e, n]) => (
+                            <DropdownMenuCheckboxItem
+                                key={e}
+                                checked={!hiddenExts[e]}
+                                onSelect={ev => ev.preventDefault()}
+                                onCheckedChange={() => toggleExt(e)}
+                            >
+                                <span className="font-mono">.{e}</span>
+                                <span className="ml-auto pl-3 text-muted-foreground">{n}</span>
+                            </DropdownMenuCheckboxItem>
+                        ))}
+                    </DropdownMenuContent>
+                </DropdownMenu>
             </div>
+            {hiddenList.length > 0 && (
+                <button
+                    type="button"
+                    onClick={showAllExts}
+                    aria-label={`Show all file types, ${hiddenList.length} hidden`}
+                    className="mx-3 mt-1.5 flex min-h-6 items-center gap-1 rounded-md border border-primary/40 bg-primary/10 px-2 py-1 text-3xs text-primary transition-colors duration-150 hover:bg-primary/20 cursor-pointer"
+                >
+                    <span className="truncate">hidden: <span className="font-mono">{hiddenList.map(e => `.${e}`).join(' ')}</span></span>
+                    <span className="ml-auto pl-1" aria-hidden="true">×</span>
+                </button>
+            )}
             {resourceFilter && (
                 <button
                     type="button"
