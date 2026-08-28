@@ -107,6 +107,10 @@ node tools/test-apply.mjs
 
 `test-scan.mjs` runs the scan pipeline against a resources folder outside FiveM.
 
+## Support
+
+If this tool saved you some pain, you can support it on [Ko-fi](https://ko-fi.com/kkmihai).
+
 ## License
 
 GPL-3.0. See [LICENSE](LICENSE). This tool can be used, studied, modified and redistributed, including commercially, and any distributed modified version must stay open source under the same license.
