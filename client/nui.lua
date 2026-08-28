@@ -65,6 +65,9 @@ end)
 RegisterNUICallback('decide', function(data, cb)
     cb(true)
     TriggerServerEvent('kk_ct:decide', data)
+    if data and data.type == 'entity' and data.action == 'remove' then
+        CT.VerifyRemoval(data)
+    end
 end)
 
 RegisterNUICallback('undo', function(_, cb)

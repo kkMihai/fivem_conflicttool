@@ -90,6 +90,31 @@ AddEventHandler('onResourceStop', function(res)
     end
 end)
 
+function CT.VerifyRemoval(d)
+    if not (d and d.hash and d.original and d.original.pos) then return end
+    if not (d.targets and #d.targets > 0) then return end
+    CreateThread(function()
+        local p = d.original.pos
+        local r = (d.hideRadius or 0.25) + 1.0
+        for _ = 1, 3 do
+            Wait(1200)
+            local obj = GetClosestObjectOfType(p[1], p[2], p[3], r, d.hash, false, false, false)
+            if not (obj and obj ~= 0 and DoesEntityExist(obj)) then return end
+        end
+        TriggerServerEvent('kk_ct:bury', {
+            conflictId = d.conflictId,
+            hash = d.hash,
+            file = d.file,
+            targets = d.targets,
+            pos = p
+        })
+        SendNUIMessage({
+            action = 'notice',
+            data = 'The game put this object back, so it cannot be removed at runtime. Queued a file edit that drops it 1000 units below the map. Run Resolve, then restart.'
+        })
+    end)
+end
+
 CT.ReapplyDecisions = function()
     if pending then applyDecisions(pending) end
 end

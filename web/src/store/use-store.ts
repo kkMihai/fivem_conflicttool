@@ -339,6 +339,8 @@ export const useStore = create<StoreState>((set, get) => ({
             hash: c.entity.model,
             guid: c.entity.guid,
             source: { resource: c.resources[1]?.name ?? c.resources[0]?.name, file: c.file },
+            file: c.file,
+            targets: c.resources.filter(r => r.rel).map(r => ({ resource: r.name, rel: r.rel })),
             original: { pos: c.entity.pos, rot: c.entity.rot },
             new: extra?.new ?? null,
             hideRadius: c.entity.radius

@@ -71,16 +71,17 @@ KKCT.decisions = (() => {
         const rec = {
             id,
             conflictId: d.conflictId || null,
-            action: 'disable',
+            action: d.action === 'bury' ? 'bury' : 'disable',
             file: d.file,
             loser: d.loser,
             winner: d.winner || null,
+            entity: d.entity || null,
             state: 'pending',
             bundleId: null,
             createdAt: new Date().toISOString(),
             by: d.by || null
         }
-        data.assets = data.assets.filter(a => !(a.file === rec.file && a.loser && rec.loser && a.loser.resource === rec.loser.resource && a.state === 'pending'))
+        data.assets = data.assets.filter(a => !(a.file === rec.file && a.action === rec.action && a.loser && rec.loser && a.loser.resource === rec.loser.resource && a.state === 'pending'))
         data.assets.push(rec)
         journal.push({ kind: 'asset', id })
         save()

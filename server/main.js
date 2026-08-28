@@ -168,6 +168,32 @@ onNet('kk_ct:decide', d => {
     pushState(src)
 })
 
+onNet('kk_ct:bury', d => {
+    const src = source
+    if (!allowed(src)) return
+    if (!d || !Array.isArray(d.targets) || !d.targets.length) return
+    if (!Array.isArray(d.pos) || typeof d.hash !== 'number') return
+    const by = GetPlayerName(src)
+    const from = d.pos
+    const to = [from[0], from[1], from[2] - 1000]
+    let queued = 0
+    for (const t of d.targets) {
+        if (!t || !t.resource || !t.rel) continue
+        KKCT.decisions.addAsset({
+            action: 'bury',
+            conflictId: d.conflictId || null,
+            file: d.file || t.rel,
+            loser: { resource: t.resource, relPath: t.rel },
+            entity: { archetype: d.hash >>> 0, from, to },
+            by
+        })
+        queued++
+    }
+    if (!queued) return
+    emitNet('kk_ct:decisionsMeta', src, KKCT.decisions.meta())
+    pushState(src)
+})
+
 onNet('kk_ct:undo', () => {
     const src = source
     if (!allowed(src)) return

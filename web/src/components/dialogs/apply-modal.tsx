@@ -39,7 +39,8 @@ export function ApplyModal() {
                                     <span>{r.summary.restored} file(s) restored</span>
                                 ) : (
                                     <span>
-                                        removed {r.summary.removed ?? 0} · moved {r.summary.moved ?? 0} · assets {r.summary.assets ?? 0} file(s)
+                                        removed {r.summary.removed ?? 0} · moved {r.summary.moved ?? 0}
+                                        {r.summary.buried ? ` · buried ${r.summary.buried}` : ''} · assets {r.summary.assets ?? 0} file(s)
                                     </span>
                                 )}
                             </div>

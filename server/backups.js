@@ -56,7 +56,8 @@ KKCT.backups = (() => {
                         restored++
                         continue
                     }
-                    throw new Error('a different file now exists at the destination')
+                    if (mv.kind !== 'edit') throw new Error('a different file now exists at the destination')
+                    KKCT.fsops.removeFile(dest)
                 }
                 try {
                     fs.mkdirSync(path.dirname(dest), { recursive: true })

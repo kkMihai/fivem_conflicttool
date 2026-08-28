@@ -85,7 +85,7 @@ export interface DecisionsMeta {
 export interface Backup {
     id: string
     createdAt: string
-    summary: { removed: number; moved: number; assets: number; files: number; errors?: number }
+    summary: { removed: number; moved: number; buried?: number; assets: number; files: number; errors?: number }
     files: number
     resources: string[]
     restored: boolean

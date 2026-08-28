@@ -79,6 +79,33 @@ KKCT.resolver = (() => {
         return p ? p.replace(/\//g, path.sep) : null
     }
 
+    function buryInPlace(src, d, backup) {
+        if (!d.entity || !Array.isArray(d.entity.from) || !Array.isArray(d.entity.to)) {
+            throw new Error('bury decision has no entity')
+        }
+        const archetype = d.entity.archetype >>> 0
+        const result = KKCT.ymap.patch(fs.readFileSync(src), [
+            { kind: 'entityPos', archetype, from: d.entity.from, to: d.entity.to }
+        ])
+        const tmp = path.join(backupsDir, `.bury-${Date.now()}-${Math.random().toString(36).slice(2)}.tmp`)
+        fs.writeFileSync(tmp, result.buf)
+        try {
+            KKCT.fsops.copyInto(tmp, src)
+            const check = KKCT.ymap.parse(fs.readFileSync(src))
+            const landed = check.entities.some(e => e.a === archetype && Math.abs(e.p[2] - d.entity.to[2]) < 0.05)
+            if (!landed) throw new Error('patched file did not verify')
+        } catch (e) {
+            try {
+                KKCT.fsops.copyInto(backup, src)
+            } catch {}
+            throw e
+        } finally {
+            try {
+                fs.unlinkSync(tmp)
+            } catch {}
+        }
+    }
+
     async function apply(progress) {
         const pending = KKCT.decisions.pendingAssets()
         const entities = KKCT.decisions.entities()
@@ -105,7 +132,11 @@ KKCT.resolver = (() => {
                     fs.unlinkSync(dest)
                     throw new Error('backup copy verification failed')
                 }
-                KKCT.fsops.removeFile(src)
+                if (d.action === 'bury') {
+                    buryInPlace(src, d, dest)
+                } else {
+                    KKCT.fsops.removeFile(src)
+                }
                 d.state = 'applied'
                 d.bundleId = bundleId
                 moves.push({
@@ -114,7 +145,8 @@ KKCT.resolver = (() => {
                     relPath: (d.loser.relPath || d.loser.rel).replace(/\\/g, '/'),
                     to: `${d.loser.resource}/${(d.loser.relPath || d.loser.rel).replace(/\\/g, '/')}`,
                     sha1: currentSha,
-                    size: fs.statSync(dest).size
+                    size: fs.statSync(dest).size,
+                    kind: d.action === 'bury' ? 'edit' : 'move'
                 })
             } catch (e) {
                 errors.push({ file: d.file, resource: d.loser ? d.loser.resource : '?', msg: e.message })
@@ -125,7 +157,8 @@ KKCT.resolver = (() => {
         const summary = {
             removed: entities.filter(e => e.action === 'remove').length,
             moved: entities.filter(e => e.action === 'move').length,
-            assets: moves.length,
+            buried: moves.filter(m => m.kind === 'edit').length,
+            assets: moves.filter(m => m.kind !== 'edit').length,
             files: moves.length,
             errors: errors.length
         }
