@@ -14,7 +14,7 @@ local dragActive = false
 
 local function applyModeNow(mode)
     GZ.pendingMode = nil
-    local cmd = mode == 'rotate' and 'gizmoRotation' or 'gizmoTranslation'
+    local cmd = mode == 'rotate' and 'gizmoRotation' or (mode == 'scale' and 'gizmoScale' or 'gizmoTranslation')
     if GZ.heldCmd == cmd then return end
     if GZ.heldCmd then
         ExecuteCommand('-' .. GZ.heldCmd)
@@ -47,7 +47,7 @@ end
 
 RegisterCommand('+kkctGizmoTranslate', function()
     if not CT.open or CT.typing then return end
-    if not GZ.active then
+    if not GZ.active and not CT.OcclEdit.active then
         SendNUIMessage({ action = 'keybind', data = { key = 'mode', value = 'translate' } })
         return
     end
@@ -62,7 +62,7 @@ RegisterKeyMapping('+kkctGizmoTranslate', 'Conflict tool: gizmo move mode', 'key
 
 RegisterCommand('+kkctGizmoRotate', function()
     if not CT.open or CT.typing then return end
-    if not GZ.active then
+    if not GZ.active and not CT.OcclEdit.active then
         SendNUIMessage({ action = 'keybind', data = { key = 'mode', value = 'rotate' } })
         return
     end
@@ -74,6 +74,18 @@ end, false)
 RegisterCommand('-kkctGizmoRotate', function() end, false)
 
 RegisterKeyMapping('+kkctGizmoRotate', 'Conflict tool: gizmo rotate mode', 'keyboard', '3')
+
+RegisterCommand('+kkctGizmoScale', function()
+    if not CT.open or CT.typing then return end
+    if not CT.OcclEdit.active then return end
+    GZ.mode = 'scale'
+    applyModeNow('scale')
+    SendNUIMessage({ action = 'gizmoMode', data = 'scale' })
+end, false)
+
+RegisterCommand('-kkctGizmoScale', function() end, false)
+
+RegisterKeyMapping('+kkctGizmoScale', 'Conflict tool: gizmo resize mode', 'keyboard', '4')
 
 local function makeEntityMatrix(entity)
     local f, r, u, a = GetEntityMatrix(entity)

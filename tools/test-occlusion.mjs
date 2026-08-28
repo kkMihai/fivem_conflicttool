@@ -168,6 +168,33 @@ console.log('--- merge ---')
 }
 
 console.log('')
+console.log('--- transform ---')
+
+{
+    const a = box([100, -200, 30], 10, 8, 6)
+    const r = KKCT.occlusion.transform(a, { c: [110, -195, 32], l: 12, w: 7, h: 5, cz: Math.cos(0.5), sz: Math.sin(0.5) })
+    check('transform accepts a valid edit', r.ok, r.ok ? '' : r.reason)
+    check('transform rounds the after values', r.ok && r.after.l === 12 && r.after.c[0] === 110)
+    check('transform writes rotation fields', r.ok && typeof r.fields.iSinZ === 'number' && typeof r.fields.iCosZ === 'number')
+    check('rotation fields at half scale', r.ok && Math.abs(r.fields.iSinZ - Math.round(Math.cos(0.5) * 0.5 * 32767)) <= 1 && Math.abs(r.fields.iCosZ - Math.round(Math.sin(0.5) * 0.5 * 32767)) <= 1)
+}
+
+{
+    const a = box([0, 0, 0], 10, 10, 10)
+    check('too thin refused', !KKCT.occlusion.transform(a, { c: [0, 0, 0], l: 0.2, w: 10, h: 10 }).ok)
+    check('out of range refused', !KKCT.occlusion.transform(a, { c: [9000, 0, 0], l: 10, w: 10, h: 10 }).ok)
+    check('bad data refused', !KKCT.occlusion.transform(a, { c: [0, 0], l: 10, w: 10, h: 10 }).ok)
+    const stale = { ...a, bi: undefined }
+    check('stale box refused in transform', !KKCT.occlusion.transform(stale, { c: [0, 0, 0], l: 10, w: 10, h: 10 }).ok)
+}
+
+{
+    const a = box([0, 0, 0], 10, 10, 10)
+    const r = KKCT.occlusion.transform(a, { c: [0, 0, 0], l: 10, w: 10, h: 10, cz: 3, sz: 4 })
+    check('rotation gets normalized', r.ok && Math.abs(r.after.cz - 0.6) < 0.001 && Math.abs(r.after.sz - 0.8) < 0.001, r.ok ? `${r.after.cz}, ${r.after.sz}` : r.reason)
+}
+
+console.log('')
 console.log('--- apply and restore on real files ---')
 
 const source = process.argv[2]
@@ -266,6 +293,34 @@ if (merge.ok) {
 
     KKCT.decisions.undo()
     check('grouped undo empties the queue', KKCT.decisions.pendingAssets().length === 0)
+}
+
+{
+    const yaw = 0.5236
+    const edit = KKCT.occlusion.transform(a, {
+        c: [real.c[0] + 2, real.c[1] - 1.5, real.c[2] + 0.5],
+        l: real.l + 3,
+        w: Math.max(1, real.w - 1),
+        h: real.h + 1,
+        cz: Math.cos(yaw),
+        sz: Math.sin(yaw)
+    })
+    check('transform computes on real box', edit.ok, edit.ok ? '' : edit.reason)
+    if (edit.ok) {
+        KKCT.decisions.addAsset({
+            action: 'clip', conflictId: 'c2', file: base,
+            loser: { resource: 'map_a', relPath: rel },
+            box: { index: edit.index, fields: edit.fields, after: edit.after }
+        })
+        const result = await KKCT.resolver.apply(() => {})
+        check('transform apply has no errors', result.errors.length === 0, JSON.stringify(result.errors))
+        const got = KKCT.ymap.parse(fs.readFileSync(fileA)).boxOccluders.find(x => x.bi === real.bi)
+        check('center moved on disk', !!got && Math.abs(got.c[0] - edit.after.c[0]) < 0.3 && Math.abs(got.c[1] - edit.after.c[1]) < 0.3)
+        check('size changed on disk', !!got && Math.abs(got.l - edit.after.l) < 0.3 && Math.abs(got.h - edit.after.h) < 0.3)
+        check('rotation changed on disk', !!got && Math.abs(got.cz - Math.cos(yaw)) < 0.01 && Math.abs(got.sz - Math.sin(yaw)) < 0.01, got ? `cz ${got.cz}, sz ${got.sz}` : 'missing')
+        const restore = await KKCT.backups.restore(result.bundleId, () => {})
+        check('transform restore ok', restore.ok && fs.readFileSync(fileA).equals(originalBytes), JSON.stringify(restore.errors))
+    }
 }
 
 fs.rmSync(sandbox, { recursive: true, force: true })

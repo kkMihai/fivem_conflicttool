@@ -268,6 +268,30 @@ onNet('kk_ct:zeroOccluder', d => {
     }
 })
 
+onNet('kk_ct:editOccluder', d => {
+    const src = source
+    if (!allowed(src)) return
+    try {
+        const boxes = occlBoxesFrom(d)
+        if (!boxes || typeof d.target !== 'number' || !boxes[d.target]) return
+        const victim = boxes[d.target]
+        const edit = KKCT.occlusion.transform(victim, d.after)
+        if (!edit.ok) {
+            emitNet('kk_ct:notice', src, edit.reason)
+            return
+        }
+        if (!occlQueue(d, victim, edit, null)) {
+            emitNet('kk_ct:notice', src, 'that occluder has no file path, run a fresh scan')
+            return
+        }
+        const newBoxes = boxes.map((box, i) => (i === d.target ? { ...box, ...edit.after } : box))
+        occlPush(src, d, newBoxes, `Queued an edit of the ${victim.resource} occluder, it is now ${edit.after.l} x ${edit.after.w} x ${edit.after.h}.`)
+    } catch (e) {
+        console.log(`[fivem_conflicttool] editOccluder failed: ${e.message}`)
+        emitNet('kk_ct:notice', src, 'the edit failed on the server, check the server console')
+    }
+})
+
 onNet('kk_ct:mergeOccluders', d => {
     const src = source
     if (!allowed(src)) return

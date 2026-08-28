@@ -19,6 +19,7 @@ client_scripts {
     'client/markers.lua',
     'client/picking.lua',
     'client/gizmo.lua',
+    'client/occledit.lua',
     'client/preview.lua',
     'client/collisionviz.lua',
     'client/nui.lua',

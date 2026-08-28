@@ -169,6 +169,52 @@ KKCT.occlusion = (() => {
         }
     }
 
+    function transform(box, next) {
+        if (!box) return { ok: false, reason: 'missing occluder data' }
+        if (staleBox([box])) {
+            return { ok: false, reason: 'this scan predates the current version, run a fresh scan first' }
+        }
+        if (!next || !Array.isArray(next.c) || next.c.length !== 3) {
+            return { ok: false, reason: 'the edit data is incomplete' }
+        }
+        const world = next.c.map(Number)
+        const sizes = [Number(next.l), Number(next.w), Number(next.h)]
+        if (world.some(v => !Number.isFinite(v)) || sizes.some(v => !Number.isFinite(v))) {
+            return { ok: false, reason: 'the edit data is incomplete' }
+        }
+        if (sizes.some(v => v / 2 < MIN_HALF)) {
+            return { ok: false, reason: 'that box is too thin, keep every side at half a meter or more' }
+        }
+        let cz = Number(next.cz ?? 1)
+        let sz = Number(next.sz ?? 0)
+        const m = Math.hypot(cz, sz)
+        if (!Number.isFinite(m) || m < 0.001) {
+            cz = 1
+            sz = 0
+        } else {
+            cz /= m
+            sz /= m
+        }
+        const fields = {
+            ...boxFields(world, sizes),
+            iSinZ: Math.round(cz * 0.5 * 32767),
+            iCosZ: Math.round(sz * 0.5 * 32767)
+        }
+        if (!fitsFormat(fields)) {
+            return { ok: false, reason: 'the edited box does not fit the file format, it is too large or too far out' }
+        }
+        return {
+            ok: true,
+            index: box.bi,
+            fields,
+            after: {
+                ...afterOf(world, sizes),
+                cz: Math.round(cz * 1000) / 1000,
+                sz: Math.round(sz * 1000) / 1000
+            }
+        }
+    }
+
     function unionVolume(spansList, uMin, uMax) {
         const grids = [0, 1, 2].map(ax => {
             const vals = []
@@ -306,6 +352,6 @@ KKCT.occlusion = (() => {
         }
     }
 
-    return { clip, merge, zero }
+    return { clip, merge, zero, transform }
 })()
 })()

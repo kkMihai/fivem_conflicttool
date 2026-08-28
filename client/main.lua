@@ -89,6 +89,7 @@ function CT.Close()
     CT.open = false
     DisplayRadar(radarWasVisible)
     CT.picking = false
+    CT.OcclEdit.Stop(true)
     CT.Gizmo.Stop(false)
     CT.Preview.Reset()
     CT.CollisionViz.Clear()
@@ -111,6 +112,8 @@ RegisterCommand('+kkctPrimary', function()
     CT.Gizmo.FlushMode()
     if CT.Gizmo.active then
         CT.Gizmo.DragStart()
+    elseif CT.OcclEdit.active then
+        CT.OcclEdit.DragStart()
     else
         CT.Picking.Click()
     end
@@ -118,6 +121,7 @@ end, false)
 
 RegisterCommand('-kkctPrimary', function()
     CT.Gizmo.DragStop()
+    CT.OcclEdit.DragStop()
 end, false)
 
 RegisterKeyMapping('+kkctPrimary', 'Conflict tool: select object / drag gizmo', 'MOUSE_BUTTON', 'MOUSE_LEFT')
@@ -165,7 +169,9 @@ bindTap('kkctGround', 'Conflict tool: snap object to ground', 'F', function()
 end)
 
 bindTap('kkctCommit', 'Conflict tool: finish transform', 'RETURN', function()
-    if CT.mode == 'transform' then
+    if CT.OcclEdit.active then
+        CT.OcclEdit.Apply()
+    elseif CT.mode == 'transform' then
         CT.NuiSend('keybind', { key = 'commit' })
     end
 end)

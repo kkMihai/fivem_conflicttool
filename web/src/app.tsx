@@ -23,6 +23,7 @@ export default function App() {
     const conflicts = useStore(s => s.conflicts)
     const uiHidden = useStore(s => s.uiHidden)
     const hoverId = useStore(s => s.hoverId)
+    const occlEdit = useStore(s => s.occlEdit)
     const hoverName =
         (hoverModel !== null ? conflicts.find(c => c.entity && c.entity.model === hoverModel)?.entity?.name : null) ??
         (hoverId ? conflicts.find(c => c.id === hoverId)?.title ?? null : null)
@@ -187,9 +188,15 @@ export default function App() {
         }
     })
 
-    useNuiEvent<'translate' | 'rotate'>('gizmoMode', mode => {
+    useNuiEvent<{ l: number; w: number; h: number }>('occlEditLive', d => {
+        if (useStore.getState().occlEdit) useStore.setState({ occlEditLive: d })
+    })
+
+    useNuiEvent('occlEditDone', () => useStore.setState({ occlEdit: null, occlEditLive: null }))
+
+    useNuiEvent<'translate' | 'rotate' | 'scale'>('gizmoMode', mode => {
         const t = useStore.getState().transform
-        if (t) useStore.setState({ transform: { ...t, mode } })
+        if (t && mode !== 'scale') useStore.setState({ transform: { ...t, mode } })
     })
 
     useNuiEvent<{ key: string; value?: any }>('keybind', d => {
@@ -327,6 +334,29 @@ export default function App() {
                             <div className="pointer-events-auto">
                                 <TransformPanel />
                             </div>
+                        </div>
+                    ) : occlEdit ? (
+                        <div className="chip-glass pointer-events-none flex items-center gap-2.5 rounded-lg px-2.5 py-1 text-3xs text-muted-foreground" role="note">
+                            <span className="flex items-center gap-1.5">
+                                <Kbd>LMB</Kbd>
+                                <span>drag gizmo</span>
+                            </span>
+                            <span className="flex items-center gap-1.5">
+                                <Kbd>2</Kbd>
+                                <span>move</span>
+                            </span>
+                            <span className="flex items-center gap-1.5">
+                                <Kbd>3</Kbd>
+                                <span>rotate</span>
+                            </span>
+                            <span className="flex items-center gap-1.5">
+                                <Kbd>4</Kbd>
+                                <span>resize</span>
+                            </span>
+                            <span className="flex items-center gap-1.5">
+                                <Kbd>Enter</Kbd>
+                                <span>apply</span>
+                            </span>
                         </div>
                     ) : (
                         <div className="flex flex-col items-center gap-1.5">

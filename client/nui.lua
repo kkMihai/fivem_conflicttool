@@ -172,6 +172,21 @@ RegisterNUICallback('clipOccluder', function(data, cb)
     end
 end)
 
+RegisterNUICallback('editOccluder', function(data, cb)
+    local ok, reason = CT.OcclEdit.Start(data)
+    cb({ ok = ok or false, reason = reason })
+end)
+
+RegisterNUICallback('occlEditApply', function(_, cb)
+    cb(true)
+    CT.OcclEdit.Apply()
+end)
+
+RegisterNUICallback('occlEditCancel', function(_, cb)
+    cb(true)
+    CT.OcclEdit.Stop(true)
+end)
+
 RegisterNUICallback('ignoreConflict', function(data, cb)
     cb(true)
     if data and (data.key or data.items) then
@@ -262,6 +277,9 @@ end)
 
 RegisterNUICallback('occlBoxes', function(data, cb)
     cb(true)
+    if CT.OcclEdit.active then
+        CT.OcclEdit.Stop(false)
+    end
     CT.CollisionViz.occl = data and data.boxes or nil
 end)
 

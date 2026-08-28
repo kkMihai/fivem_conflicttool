@@ -60,6 +60,11 @@ interface StoreState {
     clipOccluder: (c: Conflict, target: number) => void
     mergeOccluders: (c: Conflict) => void
     zeroOccluder: (c: Conflict, target: number) => void
+    occlEdit: { id: string; target: number } | null
+    occlEditLive: { l: number; w: number; h: number } | null
+    editOccluder: (c: Conflict, target: number) => Promise<void>
+    occlEditApply: () => void
+    occlEditCancel: () => void
     toggleChecked: (id: string, shift?: boolean) => void
     clearChecked: () => void
     bulkIgnore: (on: boolean) => void
@@ -192,6 +197,40 @@ export const useStore = create<StoreState>((set, get) => ({
         const boxes = c.boxes
         if (!boxes || boxes.length < 2) return
         fetchNui('zeroOccluder', { conflictId: c.id, boxes, target })
+    },
+
+    occlEdit: null,
+    occlEditLive: null,
+
+    editOccluder: async (c, target) => {
+        const boxes = c.boxes
+        if (!boxes || !boxes[target] || get().occlEdit) return
+        if (isEnvBrowser()) {
+            set({ occlEdit: { id: c.id, target }, occlEditLive: null })
+            return
+        }
+        const res = await fetchNui<{ ok: boolean; reason?: string }>('editOccluder', { conflictId: c.id, boxes, target })
+        if (res?.ok) {
+            set({ occlEdit: { id: c.id, target }, occlEditLive: null })
+        } else if (res?.reason) {
+            get().setNotice(res.reason)
+        }
+    },
+
+    occlEditApply: () => {
+        if (isEnvBrowser()) {
+            set({ occlEdit: null, occlEditLive: null })
+            return
+        }
+        fetchNui('occlEditApply')
+    },
+
+    occlEditCancel: () => {
+        if (isEnvBrowser()) {
+            set({ occlEdit: null, occlEditLive: null })
+            return
+        }
+        fetchNui('occlEditCancel')
     },
 
     toggleExt: ext => {

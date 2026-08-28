@@ -31,6 +31,11 @@ export function ConflictDetail() {
     const clipOccluder = useStore(s => s.clipOccluder)
     const mergeOccluders = useStore(s => s.mergeOccluders)
     const zeroOccluder = useStore(s => s.zeroOccluder)
+    const editOccluder = useStore(s => s.editOccluder)
+    const occlEdit = useStore(s => s.occlEdit)
+    const occlEditLive = useStore(s => s.occlEditLive)
+    const occlEditApply = useStore(s => s.occlEditApply)
+    const occlEditCancel = useStore(s => s.occlEditCancel)
     const preview = useStore(s => s.preview)
     const setPreview = useStore(s => s.setPreview)
     const c = conflicts.find(x => x.id === selectedId)
@@ -180,7 +185,7 @@ export function ConflictDetail() {
                         <Button
                             variant="secondary"
                             className="w-full justify-start"
-                            disabled={c.boxes!.filter(b => b?.rel && !(b.l === 0 && b.w === 0 && b.h === 0)).length < 2}
+                            disabled={!!occlEdit || c.boxes!.filter(b => b?.rel && !(b.l === 0 && b.w === 0 && b.h === 0)).length < 2}
                             onClick={() => mergeOccluders(c)}
                             title="Grow one occluder to cover both volumes and zero the other"
                         >
@@ -190,6 +195,8 @@ export function ConflictDetail() {
                         {c.boxes!.map((box, i) => {
                             const gone = !!box && box.l === 0 && box.w === 0 && box.h === 0
                             const locked = !box?.rel || gone
+                            const editing = occlEdit?.id === c.id && occlEdit.target === i
+                            const dims = editing && occlEditLive ? occlEditLive : box
                             return (
                                 <div key={i} className="rounded-md border border-border bg-card px-2 py-1.5">
                                     <div className="flex items-center gap-1.5 text-2xs">
@@ -200,30 +207,53 @@ export function ConflictDetail() {
                                         <Cube className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden="true" />
                                         <span className="truncate font-mono">{box?.resource ?? '?'}</span>
                                         <span className="ml-auto pl-2 text-3xs text-muted-foreground">
-                                            {gone ? 'removed' : box ? `${box.l} x ${box.w} x ${box.h}` : ''}
+                                            {gone ? 'removed' : dims ? `${dims.l} x ${dims.w} x ${dims.h}` : ''}
                                         </span>
                                     </div>
-                                    <div className="mt-1 grid grid-cols-2 gap-1">
-                                        <Button
-                                            size="sm"
-                                            variant="secondary"
-                                            disabled={locked}
-                                            onClick={() => clipOccluder(c, i)}
-                                            aria-label={`Shrink occluder ${i + 1} in ${box?.resource ?? ''} until the overlaps are gone`}
-                                        >
-                                            Shrink
-                                        </Button>
-                                        <Button
-                                            size="sm"
-                                            variant="destructive"
-                                            disabled={locked}
-                                            onClick={() => zeroOccluder(c, i)}
-                                            aria-label={`Remove occluder ${i + 1} in ${box?.resource ?? ''} by zeroing its volume`}
-                                        >
-                                            <Trash />
-                                            Remove
-                                        </Button>
-                                    </div>
+                                    {editing ? (
+                                        <div className="mt-1 grid grid-cols-2 gap-1">
+                                            <Button size="sm" onClick={() => occlEditApply()} aria-label={`Apply the edit of occluder ${i + 1}`}>
+                                                <Check />
+                                                Apply edit
+                                            </Button>
+                                            <Button size="sm" variant="secondary" onClick={() => occlEditCancel()} aria-label={`Cancel the edit of occluder ${i + 1}`}>
+                                                <X />
+                                                Cancel
+                                            </Button>
+                                        </div>
+                                    ) : (
+                                        <div className="mt-1 grid grid-cols-3 gap-1">
+                                            <Button
+                                                size="sm"
+                                                variant="secondary"
+                                                disabled={locked || !!occlEdit}
+                                                onClick={() => editOccluder(c, i)}
+                                                aria-label={`Edit occluder ${i + 1} in ${box?.resource ?? ''} with the in-world gizmo`}
+                                            >
+                                                <ArrowsOutCardinal />
+                                                Edit
+                                            </Button>
+                                            <Button
+                                                size="sm"
+                                                variant="secondary"
+                                                disabled={locked || !!occlEdit}
+                                                onClick={() => clipOccluder(c, i)}
+                                                aria-label={`Shrink occluder ${i + 1} in ${box?.resource ?? ''} until the overlaps are gone`}
+                                            >
+                                                Shrink
+                                            </Button>
+                                            <Button
+                                                size="sm"
+                                                variant="destructive"
+                                                disabled={locked || !!occlEdit}
+                                                onClick={() => zeroOccluder(c, i)}
+                                                aria-label={`Remove occluder ${i + 1} in ${box?.resource ?? ''} by zeroing its volume`}
+                                            >
+                                                <Trash />
+                                                Remove
+                                            </Button>
+                                        </div>
+                                    )}
                                 </div>
                             )
                         })}
