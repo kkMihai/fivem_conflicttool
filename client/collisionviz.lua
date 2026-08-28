@@ -127,10 +127,16 @@ local function quadBoth(p1, p2, p3, p4, r, g, b, a)
     DrawPoly(p4[1], p4[2], p4[3], p3[1], p3[2], p3[3], p1[1], p1[2], p1[3], r, g, b, a)
 end
 
-local function drawOcclBox(b)
+local function drawOcclBox(b, idx)
     local cx, cy, cz0 = b.c[1], b.c[2], b.c[3]
     local hl, hw, hh = (b.l or 1) / 2, (b.w or 1) / 2, (b.h or 1) / 2
     if hl < 0.01 and hw < 0.01 and hh < 0.01 then return end
+    local cr, cg, cb = 245, 158, 11
+    if idx == 1 then
+        cr, cg, cb = CT.colors.a[1], CT.colors.a[2], CT.colors.a[3]
+    elseif idx == 2 then
+        cr, cg, cb = CT.colors.b[1], CT.colors.b[2], CT.colors.b[3]
+    end
     local co, si = b.cz or 1.0, b.sz or 0.0
     local len = math.sqrt(co * co + si * si)
     if len > 0.001 then
@@ -144,14 +150,14 @@ local function drawOcclBox(b)
     end
     local c1, c2, c3, c4 = corner(-1, -1, -1), corner(1, -1, -1), corner(1, 1, -1), corner(-1, 1, -1)
     local t1, t2, t3, t4 = corner(-1, -1, 1), corner(1, -1, 1), corner(1, 1, 1), corner(-1, 1, 1)
-    quadBoth(t1, t2, t3, t4, 245, 158, 11, 45)
-    quadBoth(c1, c2, t2, t1, 245, 158, 11, 30)
-    quadBoth(c2, c3, t3, t2, 245, 158, 11, 30)
-    quadBoth(c3, c4, t4, t3, 245, 158, 11, 30)
-    quadBoth(c4, c1, t1, t4, 245, 158, 11, 30)
+    quadBoth(t1, t2, t3, t4, cr, cg, cb, 45)
+    quadBoth(c1, c2, t2, t1, cr, cg, cb, 30)
+    quadBoth(c2, c3, t3, t2, cr, cg, cb, 30)
+    quadBoth(c3, c4, t4, t3, cr, cg, cb, 30)
+    quadBoth(c4, c1, t1, t4, cr, cg, cb, 30)
     local edges = { { c1, c2 }, { c2, c3 }, { c3, c4 }, { c4, c1 }, { t1, t2 }, { t2, t3 }, { t3, t4 }, { t4, t1 }, { c1, t1 }, { c2, t2 }, { c3, t3 }, { c4, t4 } }
     for _, e in ipairs(edges) do
-        DrawLine(e[1][1], e[1][2], e[1][3], e[2][1], e[2][2], e[2][3], 245, 158, 11, 200)
+        DrawLine(e[1][1], e[1][2], e[1][3], e[2][1], e[2][2], e[2][3], cr, cg, cb, 200)
     end
 end
 
@@ -239,7 +245,7 @@ function CV.DrawFrame(px, py, pz, fx, fy, fz)
     end
     if occl and #occl > 0 then
         local drawn = 0
-        for _, b in ipairs(occl) do
+        for bi, b in ipairs(occl) do
             local dx, dy = b.c[1] - px, b.c[2] - py
             local d2 = dx * dx + dy * dy
             if d2 < 250000.0 then
@@ -253,7 +259,7 @@ function CV.DrawFrame(px, py, pz, fx, fy, fz)
                 if visible then
                     drawn = drawn + 1
                     if drawn > 40 then break end
-                    drawOcclBox(b)
+                    drawOcclBox(b, bi)
                 end
             end
         end

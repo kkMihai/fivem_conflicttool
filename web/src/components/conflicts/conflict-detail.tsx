@@ -192,6 +192,10 @@ export function ConflictDetail() {
                             return (
                                 <div key={side} className="rounded-md border border-border bg-card px-2 py-1.5">
                                     <div className="flex items-center gap-1.5 text-2xs">
+                                        <span
+                                            className={cn('h-2 w-2 shrink-0 rounded-full', side === 'a' ? 'bg-res-a' : 'bg-res-b')}
+                                            aria-hidden="true"
+                                        />
                                         <Cube className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden="true" />
                                         <span className="truncate font-mono">{box?.resource ?? '?'}</span>
                                         <span className="ml-auto pl-2 text-3xs text-muted-foreground">
