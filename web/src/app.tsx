@@ -93,12 +93,16 @@ export default function App() {
         let resolved = prev
         if (d.queued) {
             resolved = { ...prev }
-            const queuedSet = new Set([...d.queued.assets, ...d.queued.entities])
+            const entityFiles = d.queued.entityFiles ?? []
+            const queuedSet = new Set([...d.queued.assets, ...d.queued.entities, ...entityFiles])
             for (const id of d.queued.assets) {
                 if (!resolved[id] || resolved[id].endsWith('applied live')) resolved[id] = 'queued · needs Resolve + restart'
             }
             for (const id of d.queued.entities) {
                 if (!resolved[id]) resolved[id] = 'applied live'
+            }
+            for (const id of entityFiles) {
+                if (!resolved[id] || resolved[id].endsWith('applied live')) resolved[id] = 'applied live · file edit on Resolve'
             }
             for (const id of Object.keys(resolved)) {
                 if (resolved[id].startsWith('queued') && !queuedSet.has(id)) delete resolved[id]

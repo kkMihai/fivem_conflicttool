@@ -15,12 +15,26 @@ KKCT.decisions = (() => {
         load()
     }
 
+    function entState(e) {
+        return e.state || 'live'
+    }
+
+    function entityFileJob(e) {
+        if (entState(e) !== 'live') return false
+        if (!Array.isArray(e.targets) || !e.targets.length) return false
+        if (e.action === 'remove') return true
+        return e.action === 'move' && e.new && Array.isArray(e.new.pos)
+    }
+
     function load() {
         try {
             if (fs.existsSync(filePath)) {
                 const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'))
                 if (parsed && Array.isArray(parsed.entities) && Array.isArray(parsed.assets)) {
                     data = parsed
+                    const before = data.entities.length
+                    data.entities = data.entities.filter(e => entState(e) !== 'applied')
+                    if (data.entities.length !== before) save()
                 }
             }
         } catch (e) {
@@ -61,6 +75,19 @@ KKCT.decisions = (() => {
                       .map(sp => ({ model: sp.model >>> 0, pos: sp.pos.map(Number) }))
                 : null,
             new: d.new || null,
+            targets: Array.isArray(d.targets)
+                ? d.targets
+                      .filter(t => t && typeof t.resource === 'string' && typeof t.rel === 'string' && Array.isArray(t.from) && t.from.length === 3)
+                      .slice(0, 8)
+                      .map(t => ({
+                          resource: t.resource,
+                          rel: t.rel,
+                          from: t.from.map(Number),
+                          model: typeof t.model === 'number' ? t.model >>> 0 : undefined
+                      }))
+                : null,
+            state: 'live',
+            bundleId: null,
             hideRadius: typeof d.hideRadius === 'number' ? d.hideRadius : 0.25,
             createdAt: new Date().toISOString(),
             by: d.by || null
@@ -97,7 +124,7 @@ KKCT.decisions = (() => {
 
     function removeEntityByConflict(conflictId) {
         const before = data.entities.length
-        data.entities = data.entities.filter(e => e.conflictId !== conflictId)
+        data.entities = data.entities.filter(e => e.conflictId !== conflictId || entState(e) === 'applied')
         if (data.entities.length !== before) save()
         return before - data.entities.length
     }
@@ -107,6 +134,7 @@ KKCT.decisions = (() => {
         if (!last) return null
         if (last.kind === 'entity') {
             const rec = data.entities.find(e => e.id === last.id)
+            if (rec && entState(rec) === 'applied') return null
             data.entities = data.entities.filter(e => e.id !== last.id)
             save()
             return rec ? { kind: 'entity', rec } : null
@@ -149,16 +177,19 @@ KKCT.decisions = (() => {
         clearPending,
         queuedConflictIds: () => ({
             assets: data.assets.filter(a => a.state === 'pending' && a.conflictId).map(a => a.conflictId),
-            entities: data.entities.filter(e => e.conflictId).map(e => e.conflictId)
+            entities: data.entities.filter(e => e.conflictId && entState(e) === 'live').map(e => e.conflictId),
+            entityFiles: data.entities.filter(e => e.conflictId && entityFileJob(e)).map(e => e.conflictId)
         }),
         get: () => data,
         entities: () => data.entities,
         assets: () => data.assets,
         pendingAssets: () => data.assets.filter(a => a.state === 'pending'),
+        entityFileJobs: () => data.entities.filter(entityFileJob),
         meta: () => ({
             entities: data.entities.length,
             assetsPending: data.assets.filter(a => a.state === 'pending').length,
             assetsApplied: data.assets.filter(a => a.state === 'applied').length,
+            entityFilePending: data.entities.filter(entityFileJob).length,
             updatedAt: data.updatedAt
         })
     }

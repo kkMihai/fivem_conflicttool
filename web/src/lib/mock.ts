@@ -190,7 +190,7 @@ export const mockScanMeta: ScanMeta = {
 
 export const mockState: ToolState = {
     scanMeta: mockScanMeta,
-    decisions: { entities: 2, assetsPending: 1, assetsApplied: 0, updatedAt: new Date().toISOString() },
+    decisions: { entities: 2, assetsPending: 1, assetsApplied: 0, entityFilePending: 1, updatedAt: new Date().toISOString() },
     backups: [
         {
             id: '2026-08-07T17-30-00',

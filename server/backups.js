@@ -79,6 +79,12 @@ KKCT.backups = (() => {
                 a.state = 'reverted'
             }
         }
+        for (const e of decisions.entities) {
+            if (e.bundleId === id && e.state === 'applied') {
+                e.state = 'live'
+                e.bundleId = null
+            }
+        }
         KKCT.decisions.save()
         m.restored = true
         fs.writeFileSync(mp, JSON.stringify(m, null, 2))

@@ -105,7 +105,7 @@ export const useStore = create<StoreState>((set, get) => ({
         ? { current: __APP_VERSION__, latest: '9.9.9', updateAvailable: true, url: 'https://github.com/kkMihai/fivem_conflicttool/releases/latest', checkedAt: Date.now(), error: null }
         : null,
     scanMeta: isEnvBrowser() ? mockState.scanMeta : null,
-    decisions: isEnvBrowser() ? mockState.decisions : { entities: 0, assetsPending: 0, assetsApplied: 0, updatedAt: null },
+    decisions: isEnvBrowser() ? mockState.decisions : { entities: 0, assetsPending: 0, assetsApplied: 0, entityFilePending: 0, updatedAt: null },
     backups: isEnvBrowser() ? mockState.backups : [],
     scanning: false,
     scanProgress: null,
@@ -446,10 +446,10 @@ export const useStore = create<StoreState>((set, get) => ({
             : [{ model: entModel, pos: entPos }]
         const targets = c.target
             ? [
-                  c.resources[0]?.rel ? { resource: c.resources[0].name, rel: c.resources[0].rel, from: c.target.pos } : null,
-                  c.resources[1]?.rel ? { resource: c.resources[1].name, rel: c.resources[1].rel, from: entPos } : null
+                  c.resources[0]?.rel ? { resource: c.resources[0].name, rel: c.resources[0].rel, from: c.target.pos, model: c.target.model } : null,
+                  c.resources[1]?.rel ? { resource: c.resources[1].name, rel: c.resources[1].rel, from: entPos, model: entModel } : null
               ].filter(Boolean)
-            : c.resources.filter(r => r.rel).map(r => ({ resource: r.name, rel: r.rel, from: entPos }))
+            : c.resources.filter(r => r.rel).map(r => ({ resource: r.name, rel: r.rel, from: entPos, model: entModel }))
         fetchNui('decide', {
             type: 'entity',
             action,

@@ -81,6 +81,7 @@ export interface ScanPayload {
 export interface DecisionsMeta {
     entities: number
     assetsPending: number
+    entityFilePending?: number
     assetsApplied: number
     updatedAt: string | null
 }
@@ -88,7 +89,7 @@ export interface DecisionsMeta {
 export interface Backup {
     id: string
     createdAt: string
-    summary: { removed: number; moved: number; buried?: number; clipped?: number; assets: number; files: number; errors?: number }
+    summary: { removed: number; moved: number; buried?: number; clipped?: number; filedMoves?: number; assets: number; files: number; errors?: number }
     files: number
     resources: string[]
     restored: boolean
@@ -122,7 +123,7 @@ export interface ToolState {
     decisions: DecisionsMeta
     backups: Backup[]
     scanning: boolean
-    queued?: { assets: string[]; entities: string[] }
+    queued?: { assets: string[]; entities: string[]; entityFiles?: string[] }
     version?: VersionInfo
 }
 

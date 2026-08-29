@@ -138,47 +138,120 @@ KKCT.resolver = (() => {
         const moves = []
         const errors = []
         const appliedIds = new Set()
+        const backedUp = new Map()
         let step = 0
+
+        function ensureBackup(resource, rel) {
+            const key = `${resource}/${rel.replace(/\\/g, '/')}`
+            const cached = backedUp.get(key)
+            if (cached) return { ...cached, first: false }
+            const root = resourceRoot(resource)
+            if (!root) throw new Error(`resource ${resource} not found`)
+            const src = path.join(root, rel)
+            if (!fs.existsSync(src)) throw new Error('file already missing')
+            const sha = sha1File(src)
+            const dest = path.join(bundleDir, resource, rel)
+            fs.mkdirSync(path.dirname(dest), { recursive: true })
+            fs.copyFileSync(src, dest)
+            if (sha1File(dest) !== sha) {
+                fs.unlinkSync(dest)
+                throw new Error('backup copy verification failed')
+            }
+            const entry = { key, src, dest, sha }
+            backedUp.set(key, entry)
+            return { ...entry, first: true }
+        }
+
+        function recordMove(resource, rel, sha, dest, kind, flags) {
+            const relFwd = rel.replace(/\\/g, '/')
+            moves.push({
+                from: path.join(resourceRoot(resource) || '', rel).replace(/\\/g, '/'),
+                fromResource: resource,
+                relPath: relFwd,
+                to: `${resource}/${relFwd}`,
+                sha1: sha,
+                size: fs.statSync(dest).size,
+                ...flags,
+                kind
+            })
+        }
 
         for (const d of pending) {
             step++
             progress({ step, total: pending.length, label: d.file })
             try {
-                const root = resourceRoot(d.loser.resource)
-                if (!root) throw new Error(`resource ${d.loser.resource} not found`)
-                const src = path.join(root, d.loser.relPath || d.loser.rel)
-                if (!fs.existsSync(src)) throw new Error('file already missing')
-                const currentSha = sha1File(src)
-                if (d.loser.sha1 && currentSha !== d.loser.sha1) throw new Error('file changed since scan')
-                const dest = path.join(bundleDir, d.loser.resource, d.loser.relPath || d.loser.rel)
-                fs.mkdirSync(path.dirname(dest), { recursive: true })
-                fs.copyFileSync(src, dest)
-                if (sha1File(dest) !== currentSha) {
-                    fs.unlinkSync(dest)
-                    throw new Error('backup copy verification failed')
+                const rel = d.loser.relPath || d.loser.rel
+                const b = ensureBackup(d.loser.resource, rel)
+                if (b.first && d.loser.sha1 && b.sha !== d.loser.sha1) {
+                    fs.unlinkSync(b.dest)
+                    backedUp.delete(b.key)
+                    throw new Error('file changed since scan')
                 }
                 if (d.action === 'bury') {
-                    buryInPlace(src, d, dest)
+                    buryInPlace(b.src, d, b.dest)
                 } else if (d.action === 'clip') {
-                    clipInPlace(src, d, dest)
+                    clipInPlace(b.src, d, b.dest)
                 } else {
-                    KKCT.fsops.removeFile(src)
+                    KKCT.fsops.removeFile(b.src)
                 }
                 d.state = 'applied'
                 d.bundleId = bundleId
                 if (d.conflictId) appliedIds.add(d.conflictId)
-                moves.push({
-                    from: src.replace(/\\/g, '/'),
-                    fromResource: d.loser.resource,
-                    relPath: (d.loser.relPath || d.loser.rel).replace(/\\/g, '/'),
-                    to: `${d.loser.resource}/${(d.loser.relPath || d.loser.rel).replace(/\\/g, '/')}`,
-                    sha1: currentSha,
-                    size: fs.statSync(dest).size,
-                    clip: d.action === 'clip' || undefined,
-                    kind: (d.action === 'bury' || d.action === 'clip') ? 'edit' : 'move'
-                })
+                if (b.first) {
+                    recordMove(d.loser.resource, rel, b.sha, b.dest, (d.action === 'bury' || d.action === 'clip') ? 'edit' : 'move', {
+                        clip: d.action === 'clip' || undefined
+                    })
+                }
             } catch (e) {
                 errors.push({ file: d.file, resource: d.loser ? d.loser.resource : '?', msg: e.message })
+            }
+            await new Promise(r => setImmediate(r))
+        }
+
+        const entityJobs = KKCT.decisions.entityFileJobs()
+        for (const job of entityJobs) {
+            step++
+            progress({ step, total: pending.length + entityJobs.length, label: job.archetype || 'prop edit' })
+            let touched = false
+            for (const t of job.targets) {
+                try {
+                    const arch = (typeof t.model === 'number' ? t.model : job.hash) >>> 0
+                    const from = t.from
+                    const to = job.action === 'remove' ? [from[0], from[1], from[2] - 1000] : job.new.pos
+                    const rot = job.action === 'move' && Array.isArray(job.new.rot) ? job.new.rot : undefined
+                    const verify = parsed => parsed.entities.some(e => {
+                        if (e.a !== arch) return false
+                        if (Math.abs(e.p[0] - to[0]) > 0.05 || Math.abs(e.p[1] - to[1]) > 0.05 || Math.abs(e.p[2] - to[2]) > 0.05) return false
+                        if (!rot) return true
+                        const dot = e.r[0] * rot[0] + e.r[1] * rot[1] + e.r[2] * rot[2] + e.r[3] * rot[3]
+                        return Math.abs(dot) > 0.999
+                    })
+                    const b = ensureBackup(t.resource, t.rel)
+                    let result = null
+                    try {
+                        result = KKCT.ymap.patch(fs.readFileSync(b.src), [{ kind: 'entityPos', archetype: arch, from, to, rot }])
+                    } catch (patchErr) {
+                        if (verify(KKCT.ymap.parse(fs.readFileSync(b.src)))) {
+                            touched = true
+                            continue
+                        }
+                        throw patchErr
+                    }
+                    writeBack(b.src, result.buf, b.dest, verify)
+                    touched = true
+                    if (b.first) {
+                        recordMove(t.resource, t.rel, b.sha, b.dest, 'edit', {
+                            move: job.action === 'move' || undefined
+                        })
+                    }
+                } catch (e) {
+                    errors.push({ file: t.rel, resource: t.resource, msg: e.message })
+                }
+            }
+            if (touched) {
+                job.state = 'applied'
+                job.bundleId = bundleId
+                if (job.conflictId) appliedIds.add(job.conflictId)
             }
             await new Promise(r => setImmediate(r))
         }
@@ -186,8 +259,9 @@ KKCT.resolver = (() => {
         const summary = {
             removed: entities.filter(e => e.action === 'remove').length,
             moved: entities.filter(e => e.action === 'move').length,
-            buried: moves.filter(m => m.kind === 'edit' && !m.clip).length,
+            buried: moves.filter(m => m.kind === 'edit' && !m.clip && !m.move).length,
             clipped: moves.filter(m => m.kind === 'edit' && m.clip).length,
+            filedMoves: moves.filter(m => m.move).length,
             assets: moves.filter(m => m.kind !== 'edit').length,
             files: moves.length,
             errors: errors.length

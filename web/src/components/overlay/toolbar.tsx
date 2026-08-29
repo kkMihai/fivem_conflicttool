@@ -59,7 +59,7 @@ export function Toolbar() {
     const conflicts = useStore(s => s.conflicts)
     const enterMode = useStore(s => s.enterMode)
 
-    const pending = decisions.assetsPending
+    const pending = decisions.assetsPending + (decisions.entityFilePending ?? 0)
     const canResolve = !!decisions.entities || pending > 0
     const autoRes = scanMeta?.autoRes ?? 0
     const collCount = scanMeta?.counts.coll ?? 0

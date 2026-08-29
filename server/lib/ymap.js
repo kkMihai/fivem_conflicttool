@@ -121,10 +121,12 @@ KKCT.ymap = (() => {
         const applied = []
         const missed = []
 
+        const patchMloHash = KKCT.joaatCase('CMloInstanceDef')
+
         for (const edit of edits) {
             if (edit.kind === 'entityPos') {
                 const list = Array.isArray(md.entities) ? md.entities : []
-                const hit = list.find(e => e && e.position && e.__abs && (e.archetypeName >>> 0) === (edit.archetype >>> 0) && near(e.position, edit.from))
+                const hit = list.find(e => e && e.position && e.__abs && e.__struct !== patchMloHash && (e.archetypeName >>> 0) === (edit.archetype >>> 0) && near(e.position, edit.from))
                 if (!hit) {
                     missed.push(edit)
                     continue
@@ -134,10 +136,25 @@ KKCT.ymap = (() => {
                     missed.push(edit)
                     continue
                 }
+                let fr = null
+                if (edit.rot) {
+                    fr = meta.fieldOffset(hit.__struct, 'rotation')
+                    if (!fr || fr.type !== meta.T.VEC4) {
+                        missed.push(edit)
+                        continue
+                    }
+                }
                 const at = hit.__abs + f.offset
                 data.writeFloatLE(edit.to[0], at)
                 data.writeFloatLE(edit.to[1], at + 4)
                 data.writeFloatLE(edit.to[2], at + 8)
+                if (fr) {
+                    const rat = hit.__abs + fr.offset
+                    data.writeFloatLE(-edit.rot[0], rat)
+                    data.writeFloatLE(-edit.rot[1], rat + 4)
+                    data.writeFloatLE(-edit.rot[2], rat + 8)
+                    data.writeFloatLE(edit.rot[3], rat + 12)
+                }
                 applied.push(edit)
                 continue
             }
