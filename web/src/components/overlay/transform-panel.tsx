@@ -1,9 +1,30 @@
+import { useState } from 'react'
 import { ArrowLineDown, Check, GridFour, X } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useStore } from '@/store/use-store'
 import { fetchNui } from '@/lib/nui'
 import { cn } from '@/lib/utils'
+
+function NumField({ label, value, step, onCommit }: { label: string; value: number; step: number; onCommit: (v: number) => void }) {
+    const [draft, setDraft] = useState<string | null>(null)
+    const shown = draft ?? value.toFixed(step < 1 ? 2 : 1)
+    return (
+        <Input
+            type="number"
+            aria-label={label}
+            className="font-mono"
+            step={step}
+            value={shown}
+            onChange={e => {
+                setDraft(e.target.value)
+                const v = parseFloat(e.target.value)
+                if (!Number.isNaN(v)) onCommit(v)
+            }}
+            onBlur={() => setDraft(null)}
+        />
+    )
+}
 
 const axes = ['X', 'Y', 'Z'] as const
 const rots = ['Roll', 'Pitch', 'Yaw'] as const
@@ -73,27 +94,13 @@ export function TransformPanel() {
                 {axes.map((a, i) => (
                     <div key={a}>
                         <div className={cn('text-3xs font-bold', axisColor[i])}>{a}</div>
-                        <Input
-                            type="number"
-                            aria-label={`Position ${a}`}
-                            className="font-mono"
-                            step={0.05}
-                            value={transform.pos[i].toFixed(2)}
-                            onChange={e => numChange('pos', i, parseFloat(e.target.value))}
-                        />
+                        <NumField label={`Position ${a}`} step={0.05} value={transform.pos[i]} onCommit={v => numChange('pos', i, v)} />
                     </div>
                 ))}
                 {rots.map((a, i) => (
                     <div key={a}>
                         <div className="text-3xs font-bold text-muted-foreground">{a}</div>
-                        <Input
-                            type="number"
-                            aria-label={a}
-                            className="font-mono"
-                            step={1}
-                            value={transform.rot[i].toFixed(1)}
-                            onChange={e => numChange('rot', i, parseFloat(e.target.value))}
-                        />
+                        <NumField label={a} step={1} value={transform.rot[i]} onCommit={v => numChange('rot', i, v)} />
                     </div>
                 ))}
             </div>
