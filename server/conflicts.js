@@ -69,7 +69,7 @@ KKCT.conflicts = (() => {
         }
 
         for (const [key, entries] of index) {
-            const sorted = [...entries].sort((a, b) => a.order - b.order)
+            const sorted = [...entries].sort((a, b) => ((a.inStream ? 1 : 0) - (b.inStream ? 1 : 0)) || (a.order - b.order))
             const winner = sorted[sorted.length - 1]
             if (winner.ext === 'ymap' && winner.parsed) {
                 for (const b of winner.parsed.boxOccluders || []) {
@@ -100,7 +100,10 @@ KKCT.conflicts = (() => {
             else if (ext === 'ymap' && winner.parsed && !winner.parsed.entities.length && (winner.parsed.boxOccluders.length || winner.parsed.occludeModels.length)) cat = 'occl'
             else if (key.includes('occl')) cat = 'occl'
 
+            const resCount = new Set(sorted.map(e => e.resource)).size
+            const deadCount = winner.inStream ? sorted.filter(e => !e.inStream).length : 0
             const badges = [`${sorted.length} scripts · ${versions} version${versions > 1 ? 's' : ''}`]
+            if (deadCount) badges.push(`${deadCount} cop${deadCount > 1 ? 'ies' : 'y'} outside stream`)
             if (ext === 'ytd') badges.push('texture dict')
             let staleLod = false
             if (ext === 'ymap' && !identical && winner.parsed) {
@@ -120,11 +123,13 @@ KKCT.conflicts = (() => {
             else if (ext === 'ybn' && winner.parsed) pos = [(winner.parsed.bmin[0] + winner.parsed.bmax[0]) / 2, (winner.parsed.bmin[1] + winner.parsed.bmax[1]) / 2, (winner.parsed.bmin[2] + winner.parsed.bmax[2]) / 2]
             else if (ext === 'ydr' || ext === 'ydd' || ext === 'yft') pos = archPos.get(KKCT.joaat(key.replace(/\.[^.]+$/, ''))) || null
 
-            const summary = identical
-                ? `${sorted.length} resources ship an identical copy of ${key}. Only one is needed, the rest waste memory and load time.`
-                : ext === 'ytd'
-                    ? `${sorted.length} resources ship different versions of texture dictionary ${key}. Only the last loaded wins, so models using it can show the wrong textures.`
-                    : `${sorted.length} resources ship different versions of ${key}. Map files override by name, so only the script loaded last takes effect.`
+            const summary = resCount === 1
+                ? `${winner.resource} ships ${sorted.length} copies of ${key}. Only the streamed copy loads in game, the rest sit unused in the resource folder.`
+                : identical
+                    ? `${sorted.length} resources ship an identical copy of ${key}. Only one is needed, the rest waste memory and load time.`
+                    : ext === 'ytd'
+                        ? `${sorted.length} resources ship different versions of texture dictionary ${key}. Only the last loaded wins, so models using it can show the wrong textures.`
+                        : `${sorted.length} resources ship different versions of ${key}. Map files override by name, so only the script loaded last takes effect.`
             const note = vanilla
                 ? 'This file overrides a vanilla GTA map file. Removing every copy restores the base game.'
                 : 'The copy loaded last is the one players get in game. Disable the other copies so this stays predictable.'
@@ -136,7 +141,7 @@ KKCT.conflicts = (() => {
                 sev: cat === 'coll' ? 'high' : 'medium',
                 kind: 'dup-file',
                 title: key,
-                sub: sorted.map(s => s.resource).join(' vs '),
+                sub: resCount === 1 ? `${winner.resource} · internal copies` : sorted.map(s => s.resource).join(' vs '),
                 file: key,
                 badges,
                 vanilla,
@@ -148,7 +153,11 @@ KKCT.conflicts = (() => {
                     size: s.size,
                     sha1: short(s.sha1),
                     fullSha1: s.sha1,
-                    status: i === sorted.length - 1 ? 'loads last · active in game' : (identical ? 'identical copy' : 'overridden')
+                    status: i === sorted.length - 1
+                        ? 'loads last · active in game'
+                        : (winner.inStream && !s.inStream
+                            ? 'never loads · outside stream'
+                            : (identical ? 'identical copy' : 'overridden'))
                 })),
                 entity: null,
                 target: null,
