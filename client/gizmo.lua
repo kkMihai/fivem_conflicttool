@@ -109,6 +109,23 @@ end, false)
 
 RegisterKeyMapping('+kkctGizmoSpace', 'Conflict tool: gizmo local or global axes', 'keyboard', 'X')
 
+RegisterCommand('kkct_debug', function()
+    local e = GZ.entity
+    local pos = e and DoesEntityExist(e) and GetEntityCoords(e) or nil
+    print(('[kkct_debug] gizmo active=%s session=%d drag=%s entity=%s exists=%s pos=%s frozen=%s typing=%s overUi=%s mode=%s'):format(
+        tostring(GZ.active), session, tostring(dragActive), tostring(e),
+        tostring(e and DoesEntityExist(e) or false),
+        pos and ('%.2f %.2f %.2f'):format(pos.x, pos.y, pos.z) or 'nil',
+        tostring(e and DoesEntityExist(e) and IsEntityPositionFrozen(e) or 'n/a'),
+        tostring(CT.typing), tostring(CT.overUi), tostring(CT.mode)))
+    if e and DoesEntityExist(e) then
+        SetEntityCoordsNoOffset(e, pos.x, pos.y, pos.z + 2.0, false, false, false)
+        local after = GetEntityCoords(e)
+        print(('[kkct_debug] nudge +2z: now %.2f %.2f %.2f (moved=%s)'):format(after.x, after.y, after.z, tostring(math.abs(after.z - pos.z - 2.0) < 0.01)))
+        SetEntityCoordsNoOffset(e, pos.x, pos.y, pos.z, false, false, false)
+    end
+end, false)
+
 local function makeEntityMatrix(entity)
     local f, r, u, a = GetEntityMatrix(entity)
     local view = DataView.ArrayBuffer(64)
@@ -176,10 +193,14 @@ function GZ.Emit()
     SendNUIMessage({ action = 'gizmoTransform', data = { pos = { p.x, p.y, p.z }, rot = { r.x, r.y, r.z }, quat = { qx, qy, qz, qw } } })
 end
 
+local session = 0
+
 function GZ.Start(entity)
     if GZ.active then GZ.Stop(false) end
     GZ.entity = entity
     GZ.active = true
+    session = session + 1
+    local mySession = session
     GZ.pendingMode = GZ.mode
     GZ.EmitSpace()
     CT.mode = 'transform'
@@ -196,12 +217,16 @@ function GZ.Start(entity)
     end
     CreateThread(function()
         local emitAt = 0
-        while GZ.active and DoesEntityExist(entity) do
+        while GZ.active and session == mySession and DoesEntityExist(entity) do
             Wait(0)
+            if not (GZ.active and session == mySession) then break end
             DisableControlAction(0, 24, true)
             DisableControlAction(0, 25, true)
             DisableControlAction(0, 140, true)
             DisablePlayerFiring(PlayerId(), true)
+            if dragActive and not IsDisabledControlPressed(0, 24) and not IsControlPressed(0, 24) then
+                GZ.DragStop()
+            end
             if GZ.supported then
                 local view = makeEntityMatrix(entity)
                 local changed = Citizen.InvokeNative(0xEB2EDCA2, view:Buffer(), 'kk_ct_gizmo', Citizen.ReturnResultAnyway())
@@ -222,7 +247,7 @@ function GZ.Start(entity)
         if DoesEntityExist(entity) then
             SetEntityDrawOutline(entity, false)
         end
-        if GZ.active and GZ.entity == entity then
+        if GZ.active and session == mySession and GZ.entity == entity then
             GZ.Stop(false)
             CT.Preview.Reset()
             CT.ApplyFocus()
@@ -234,6 +259,8 @@ end
 function GZ.Stop(commit)
     if not GZ.active then return nil end
     GZ.active = false
+    session = session + 1
+    GZ.DragStop()
     CT.mode = 'browse'
     local result = nil
     if GZ.entity and DoesEntityExist(GZ.entity) then
