@@ -26,9 +26,9 @@ local function spawnGhost(d)
         Wait(10)
     end
     if not HasModelLoaded(hash) then return end
-    local obj = CreateObjectNoOffset(hash, d.new.pos[1], d.new.pos[2], d.new.pos[3], false, false, false)
+    local obj = CreateObjectNoOffset(hash, d.new.pos[1] + 0.0, d.new.pos[2] + 0.0, d.new.pos[3] + 0.0, false, false, false)
     if obj and obj ~= 0 then
-        SetEntityQuaternion(obj, d.new.rot[1], d.new.rot[2], d.new.rot[3], d.new.rot[4])
+        SetEntityQuaternion(obj, d.new.rot[1] + 0.0, d.new.rot[2] + 0.0, d.new.rot[3] + 0.0, d.new.rot[4] + 0.0)
         FreezeEntityPosition(obj, true)
         SetEntityCollision(obj, true, true)
         SetEntityInvincible(obj, true)
@@ -38,8 +38,9 @@ local function spawnGhost(d)
 end
 
 local function hideInstance(hash, p, r)
-    CreateModelHideExcludingScriptObjects(p[1], p[2], p[3], r, hash, true)
-    local obj = GetClosestObjectOfType(p[1], p[2], p[3], r + 0.5, hash, false, false, false)
+    local x, y, z = p[1] + 0.0, p[2] + 0.0, p[3] + 0.0
+    CreateModelHideExcludingScriptObjects(x, y, z, r + 0.0, hash, true)
+    local obj = GetClosestObjectOfType(x, y, z, r + 0.5, hash, false, false, false)
     if obj and obj ~= 0 then
         SetEntityAsMissionEntity(obj, true, true)
         DeleteEntity(obj)
@@ -96,8 +97,8 @@ AddEventHandler('onResourceStop', function(res)
 end)
 
 local function stillDrawn(sp)
-    local p = sp.pos
-    local handle = StartExpensiveSynchronousShapeTestLosProbe(p[1], p[2], p[3] + 2.0, p[1], p[2], p[3] - 2.0, -1, PlayerPedId(), 4)
+    local x, y, z = sp.pos[1] + 0.0, sp.pos[2] + 0.0, sp.pos[3] + 0.0
+    local handle = StartExpensiveSynchronousShapeTestLosProbe(x, y, z + 2.0, x, y, z - 2.0, -1, PlayerPedId(), 4)
     local _, hit, _, _, ent = GetShapeTestResult(handle)
     if hit == 1 and ent and ent ~= 0 then
         local ok, model = pcall(GetEntityModel, ent)
@@ -122,7 +123,7 @@ function CT.VerifyRemoval(d)
             Wait(1200)
             persists = false
             for _, sp in ipairs(spots) do
-                local obj = GetClosestObjectOfType(sp.pos[1], sp.pos[2], sp.pos[3], r, sp.model, false, false, false)
+                local obj = GetClosestObjectOfType(sp.pos[1] + 0.0, sp.pos[2] + 0.0, sp.pos[3] + 0.0, r + 0.0, sp.model, false, false, false)
                 if obj and obj ~= 0 and DoesEntityExist(obj) and not DoesEntityBelongToThisScript(obj, true) then
                     persists = true
                     break

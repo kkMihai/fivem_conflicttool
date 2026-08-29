@@ -177,10 +177,10 @@ end
 function GZ.SetTransform(pos, rotDeg)
     if not (GZ.entity and DoesEntityExist(GZ.entity)) then return end
     if pos then
-        SetEntityCoordsNoOffset(GZ.entity, pos[1], pos[2], pos[3], false, false, false)
+        SetEntityCoordsNoOffset(GZ.entity, pos[1] + 0.0, pos[2] + 0.0, pos[3] + 0.0, false, false, false)
     end
     if rotDeg then
-        SetEntityRotation(GZ.entity, rotDeg[1], rotDeg[2], rotDeg[3], 2, true)
+        SetEntityRotation(GZ.entity, rotDeg[1] + 0.0, rotDeg[2] + 0.0, rotDeg[3] + 0.0, 2, true)
     end
     GZ.Emit()
 end

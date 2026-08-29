@@ -91,7 +91,7 @@ RegisterNUICallback('startTransform', function(data, cb)
         if spots and #spots > 0 then
             if not ghostPos then
                 for _, sp in ipairs(spots) do
-                    local obj = GetClosestObjectOfType(sp.pos[1], sp.pos[2], sp.pos[3], hideR + 1.0, sp.model, false, false, false)
+                    local obj = GetClosestObjectOfType(sp.pos[1] + 0.0, sp.pos[2] + 0.0, sp.pos[3] + 0.0, hideR + 1.0, sp.model, false, false, false)
                     if (obj and obj ~= 0) or CT.StillDrawn(sp) then
                         ghostPos = sp.pos
                         break

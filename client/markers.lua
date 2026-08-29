@@ -109,8 +109,9 @@ local function drawPulse()
         local q = pts[i]
         local dx, dy = q[1] - cx, q[2] - cy
         if dx * dx + dy * dy < 250000.0 then
-            DrawMarker(28, q[1], q[2], q[3], 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, grow, grow, grow, col[1], col[2], col[3], alpha, false, false, 2, false, nil, nil, false)
-            DrawLine(q[1], q[2], q[3] - 8.0, q[1], q[2], q[3] + 12.0, col[1], col[2], col[3], alpha)
+            local qx, qy, qz = q[1] + 0.0, q[2] + 0.0, q[3] + 0.0
+            DrawMarker(28, qx, qy, qz, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, grow, grow, grow, col[1], col[2], col[3], alpha, false, false, 2, false, nil, nil, false)
+            DrawLine(qx, qy, qz - 8.0, qx, qy, qz + 12.0, col[1], col[2], col[3], alpha)
         end
     end
 end

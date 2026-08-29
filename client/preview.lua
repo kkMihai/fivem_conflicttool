@@ -7,10 +7,11 @@ CT.Preview = {
 local PV = CT.Preview
 
 function PV.Hide(model, pos, radius)
-    local r = radius or 0.25
-    CreateModelHideExcludingScriptObjects(pos[1], pos[2], pos[3], r, model, true)
-    local h = { x = pos[1], y = pos[2], z = pos[3], r = r, hash = model, obj = nil }
-    local obj = GetClosestObjectOfType(pos[1], pos[2], pos[3], r + 0.5, model, false, false, false)
+    local r = (radius or 0.25) + 0.0
+    local x, y, z = pos[1] + 0.0, pos[2] + 0.0, pos[3] + 0.0
+    CreateModelHideExcludingScriptObjects(x, y, z, r, model, true)
+    local h = { x = x, y = y, z = z, r = r, hash = model, obj = nil }
+    local obj = GetClosestObjectOfType(x, y, z, r + 0.5, model, false, false, false)
     if obj and obj ~= 0 and not DoesEntityBelongToThisScript(obj, true) then
         SetEntityVisible(obj, false, false)
         SetEntityCollision(obj, false, false)
@@ -36,10 +37,10 @@ function PV.SpawnGhost(model, pos, rot)
         Wait(10)
     end
     if not HasModelLoaded(model) then return nil end
-    local obj = CreateObjectNoOffset(model, pos[1], pos[2], pos[3], false, false, false)
+    local obj = CreateObjectNoOffset(model, pos[1] + 0.0, pos[2] + 0.0, pos[3] + 0.0, false, false, false)
     if not obj or obj == 0 then return nil end
     if rot then
-        SetEntityQuaternion(obj, rot[1], rot[2], rot[3], rot[4])
+        SetEntityQuaternion(obj, rot[1] + 0.0, rot[2] + 0.0, rot[3] + 0.0, rot[4] + 0.0)
     end
     FreezeEntityPosition(obj, true)
     SetEntityCollision(obj, false, false)
