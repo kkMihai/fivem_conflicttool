@@ -100,7 +100,8 @@ local function stillDrawn(sp)
     local handle = StartExpensiveSynchronousShapeTestLosProbe(p[1], p[2], p[3] + 2.0, p[1], p[2], p[3] - 2.0, -1, PlayerPedId(), 4)
     local _, hit, _, _, ent = GetShapeTestResult(handle)
     if hit == 1 and ent and ent ~= 0 then
-        return GetEntityModel(ent) == sp.model
+        local ok, model = pcall(GetEntityModel, ent)
+        return ok and model == sp.model
     end
     return false
 end

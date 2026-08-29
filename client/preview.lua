@@ -8,8 +8,23 @@ local PV = CT.Preview
 
 function PV.Hide(model, pos, radius)
     local r = radius or 0.25
-    CT.HideInstance(model, pos, r)
-    PV.hides[#PV.hides + 1] = { x = pos[1], y = pos[2], z = pos[3], r = r, hash = model }
+    CreateModelHideExcludingScriptObjects(pos[1], pos[2], pos[3], r, model, true)
+    local h = { x = pos[1], y = pos[2], z = pos[3], r = r, hash = model, obj = nil }
+    local obj = GetClosestObjectOfType(pos[1], pos[2], pos[3], r + 0.5, model, false, false, false)
+    if obj and obj ~= 0 and not DoesEntityBelongToThisScript(obj, true) then
+        SetEntityVisible(obj, false, false)
+        SetEntityCollision(obj, false, false)
+        h.obj = obj
+    end
+    PV.hides[#PV.hides + 1] = h
+end
+
+local function unhide(h)
+    RemoveModelHide(h.x, h.y, h.z, h.r, h.hash, false)
+    if h.obj and DoesEntityExist(h.obj) then
+        SetEntityVisible(h.obj, true, false)
+        SetEntityCollision(h.obj, true, true)
+    end
 end
 
 function PV.SpawnGhost(model, pos, rot)
@@ -46,7 +61,7 @@ end
 
 function PV.Reset()
     for _, h in ipairs(PV.hides) do
-        RemoveModelHide(h.x, h.y, h.z, h.r, h.hash, false)
+        unhide(h)
     end
     PV.hides = {}
     PV.RemoveGhost()
@@ -56,7 +71,7 @@ end
 AddEventHandler('onResourceStop', function(res)
     if res == GetCurrentResourceName() then
         for _, h in ipairs(PV.hides) do
-            RemoveModelHide(h.x, h.y, h.z, h.r, h.hash, false)
+            unhide(h)
         end
         PV.RemoveGhost()
     end
