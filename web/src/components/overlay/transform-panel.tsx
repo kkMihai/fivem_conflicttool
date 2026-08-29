@@ -11,15 +11,20 @@ function NumField({ label, value, step, onCommit }: { label: string; value: numb
     const shown = draft ?? value.toFixed(step < 1 ? 2 : 1)
     return (
         <Input
-            type="number"
+            type="text"
+            inputMode="decimal"
             aria-label={label}
             className="font-mono"
-            step={step}
             value={shown}
             onChange={e => {
-                setDraft(e.target.value)
-                const v = parseFloat(e.target.value)
+                const text = e.target.value
+                if (!/^-?[0-9]*[.,]?[0-9]*$/.test(text)) return
+                setDraft(text)
+                const v = parseFloat(text.replace(',', '.'))
                 if (!Number.isNaN(v)) onCommit(v)
+            }}
+            onKeyDown={e => {
+                if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
             }}
             onBlur={() => setDraft(null)}
         />
