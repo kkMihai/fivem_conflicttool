@@ -95,6 +95,16 @@ AddEventHandler('onResourceStop', function(res)
     end
 end)
 
+local function stillDrawn(sp)
+    local p = sp.pos
+    local handle = StartExpensiveSynchronousShapeTestLosProbe(p[1], p[2], p[3] + 2.0, p[1], p[2], p[3] - 2.0, -1, PlayerPedId(), 4)
+    local _, hit, _, _, ent = GetShapeTestResult(handle)
+    if hit == 1 and ent and ent ~= 0 then
+        return GetEntityModel(ent) == sp.model
+    end
+    return false
+end
+
 function CT.VerifyRemoval(d)
     if not (d and d.hash and d.original and d.original.pos) then return end
     if not (d.targets and #d.targets > 0) then return end
@@ -115,7 +125,18 @@ function CT.VerifyRemoval(d)
                     break
                 end
             end
-            if not persists then return end
+            if not persists then
+                for _, sp in ipairs(spots) do
+                    if stillDrawn(sp) then
+                        SendNUIMessage({
+                            action = 'notice',
+                            data = 'The engine keeps this one loaded until the area reloads, so it stays visible for now. It is gone on reconnect, and Resolve plus a restart removes it for good.'
+                        })
+                        return
+                    end
+                end
+                return
+            end
         end
         TriggerServerEvent('kk_ct:bury', {
             conflictId = d.conflictId,
