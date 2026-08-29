@@ -13,7 +13,7 @@ KKCT.scanner = (() => {
 
     let scanning = false
     let lastScan = null
-    const PARSE_VERSION = 2
+    const PARSE_VERSION = 3
     let cacheDir = null
     let rootDir = null
     let hashCache = new Map()

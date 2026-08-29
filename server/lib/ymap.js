@@ -30,18 +30,25 @@ KKCT.ymap = (() => {
         const entities = []
         for (const e of Array.isArray(md.entities) ? md.entities : []) {
             if (!e || !e.position) continue
+            const mlo = e.__struct === mloHash
+            let r = [0, 0, 0, 1]
+            if (e.rotation) {
+                r = mlo
+                    ? [round4(e.rotation[0]), round4(e.rotation[1]), round4(e.rotation[2]), round4(e.rotation[3])]
+                    : [round4(-e.rotation[0]), round4(-e.rotation[1]), round4(-e.rotation[2]), round4(e.rotation[3])]
+            }
             entities.push({
                 a: (e.archetypeName ?? 0) >>> 0,
                 g: (e.guid ?? 0) >>> 0,
                 f: (e.flags ?? 0) >>> 0,
                 p: [round3(e.position[0]), round3(e.position[1]), round3(e.position[2])],
-                r: e.rotation ? [round4(e.rotation[0]), round4(e.rotation[1]), round4(e.rotation[2]), round4(e.rotation[3])] : [0, 0, 0, 1],
+                r,
                 s: [round3(e.scaleXY ?? 1), round3(e.scaleZ ?? 1)],
                 ld: Math.round(e.lodDist ?? 0),
                 cld: Math.round(e.childLodDist ?? 0),
                 ll: e.lodLevel ?? 0,
                 pl: e.priorityLevel ?? 0,
-                mlo: e.__struct === mloHash
+                mlo
             })
         }
 
