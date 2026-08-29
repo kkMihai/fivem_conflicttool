@@ -32,6 +32,7 @@ interface StoreState {
     picking: boolean
     history: HistoryEntry[]
     transform: TransformState | null
+    movedTo: Record<string, { pos: [number, number, number]; rot: [number, number, number, number] }>
     applyState: { open: boolean; step: number; total: number; label: string; done: boolean; result: any } | null
     backupsOpen: boolean
     scriptsOpen: boolean
@@ -127,6 +128,7 @@ export const useStore = create<StoreState>((set, get) => ({
     picking: true,
     history: [],
     transform: null,
+    movedTo: {},
     applyState: null,
     backupsOpen: false,
     scriptsOpen: false,
@@ -163,7 +165,7 @@ export const useStore = create<StoreState>((set, get) => ({
     setVisible: v => set({ visible: v }),
 
     setConflicts: c => {
-        set({ conflicts: c, resolved: {}, checked: {}, lastChecked: null })
+        set({ conflicts: c, resolved: {}, checked: {}, lastChecked: null, movedTo: {} })
         get().pushMarkers()
     },
 
@@ -463,7 +465,10 @@ export const useStore = create<StoreState>((set, get) => ({
             new: extra?.new ?? null,
             hideRadius: c.entity.radius
         })
-        set(s => ({ resolved: { ...s.resolved, [c.id]: action === 'remove' ? 'removed · applied live' : 'moved · applied live' } }))
+        set(s => ({
+            resolved: { ...s.resolved, [c.id]: action === 'remove' ? 'removed · applied live' : 'moved · applied live' },
+            movedTo: action === 'move' && extra?.new ? { ...s.movedTo, [c.id]: { pos: extra.new.pos, rot: extra.new.rot } } : s.movedTo
+        }))
         get().pushHistory({ id: c.id, label: c.title, action })
     },
 
@@ -500,12 +505,13 @@ export const useStore = create<StoreState>((set, get) => ({
             set({ preview: null })
         }
         const live = c.target ?? { pos: c.entity.pos, rot: c.entity.rot, model: c.entity.model }
+        const moved = get().movedTo[c.id]
         const res = await fetchNui<{ ok?: boolean; reason?: string }>('startTransform', {
             model: live.model,
             pos: live.pos,
-            rot: live.rot,
+            rot: moved?.rot ?? live.rot,
             radius: c.entity.radius,
-            newPos: null
+            newPos: moved?.pos ?? null
         })
         if (res && res.ok === false) {
             if (res.reason) get().setNotice(res.reason)
@@ -516,9 +522,9 @@ export const useStore = create<StoreState>((set, get) => ({
                 conflictId: c.id,
                 model: live.model,
                 name: c.entity.name,
-                pos: live.pos,
+                pos: moved?.pos ?? live.pos,
                 rot: [0, 0, 0],
-                quat: live.rot,
+                quat: moved?.rot ?? live.rot,
                 mode: 'translate',
                 grid: false
             }
@@ -529,10 +535,14 @@ export const useStore = create<StoreState>((set, get) => ({
         const t = get().transform
         set({ transform: null })
         const result = await fetchNui<any>('endTransform', { commit })
-        if (commit && t && result && result.pos) {
-            const c = get().conflicts.find(x => x.id === t.conflictId)
-            if (c) {
-                get().decideEntity(c, 'move', { new: { pos: result.pos, rot: result.quat } })
+        if (commit && t) {
+            if (result && result.pos) {
+                const c = get().conflicts.find(x => x.id === t.conflictId)
+                if (c) {
+                    get().decideEntity(c, 'move', { new: { pos: result.pos, rot: result.quat } })
+                }
+            } else {
+                get().setNotice('The preview object was lost, so nothing was applied. Open Move and try again.')
             }
         }
     },
@@ -591,6 +601,8 @@ export const useStore = create<StoreState>((set, get) => ({
             if (!first) return {}
             const resolved = { ...s.resolved }
             delete resolved[first.id]
+            const movedTo = { ...s.movedTo }
+            delete movedTo[first.id]
             let conflicts = s.conflicts
             if (first.boxes) {
                 conflicts = conflicts.map(c => (c.id === first.id ? { ...c, boxes: first.boxes } : c))
@@ -598,7 +610,7 @@ export const useStore = create<StoreState>((set, get) => ({
                     fetchNui('occlBoxes', { boxes: first.boxes })
                 }
             }
-            return { history: rest, resolved, conflicts }
+            return { history: rest, resolved, conflicts, movedTo }
         })
     }
 }))
