@@ -506,12 +506,19 @@ export const useStore = create<StoreState>((set, get) => ({
         }
         const live = c.target ?? { pos: c.entity.pos, rot: c.entity.rot, model: c.entity.model }
         const moved = get().movedTo[c.id]
-        const res = await fetchNui<{ ok?: boolean; reason?: string }>('startTransform', {
+        const spots = c.target
+            ? [
+                  { model: c.target.model, pos: c.target.pos },
+                  { model: c.entity.model, pos: c.entity.pos }
+              ]
+            : [{ model: c.entity.model, pos: c.entity.pos }]
+        const res = await fetchNui<{ ok?: boolean; reason?: string; pos?: [number, number, number] }>('startTransform', {
             model: live.model,
             pos: live.pos,
             rot: moved?.rot ?? live.rot,
             radius: c.entity.radius,
-            newPos: moved?.pos ?? null
+            newPos: moved?.pos ?? null,
+            spots
         })
         if (res && res.ok === false) {
             if (res.reason) get().setNotice(res.reason)
@@ -522,7 +529,7 @@ export const useStore = create<StoreState>((set, get) => ({
                 conflictId: c.id,
                 model: live.model,
                 name: c.entity.name,
-                pos: moved?.pos ?? live.pos,
+                pos: moved?.pos ?? res?.pos ?? live.pos,
                 rot: [0, 0, 0],
                 quat: moved?.rot ?? live.rot,
                 mode: 'translate',

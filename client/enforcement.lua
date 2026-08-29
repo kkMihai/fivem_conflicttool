@@ -105,6 +105,8 @@ local function stillDrawn(sp)
     return false
 end
 
+CT.StillDrawn = stillDrawn
+
 function CT.VerifyRemoval(d)
     if not (d and d.hash and d.original and d.original.pos) then return end
     if not (d.targets and #d.targets > 0) then return end

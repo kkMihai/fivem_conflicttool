@@ -85,14 +85,34 @@ RegisterNUICallback('startTransform', function(data, cb)
         return
     end
     CreateThread(function()
-        CT.Preview.Hide(data.model, data.pos, data.radius or 0.25)
-        local ghost = CT.Preview.SpawnGhost(data.model, data.newPos or data.pos, data.rot)
+        local hideR = data.radius or 0.25
+        local spots = data.spots
+        local ghostPos = data.newPos
+        if spots and #spots > 0 then
+            if not ghostPos then
+                for _, sp in ipairs(spots) do
+                    local obj = GetClosestObjectOfType(sp.pos[1], sp.pos[2], sp.pos[3], hideR + 1.0, sp.model, false, false, false)
+                    if (obj and obj ~= 0) or CT.StillDrawn(sp) then
+                        ghostPos = sp.pos
+                        break
+                    end
+                end
+                ghostPos = ghostPos or spots[1].pos
+            end
+            for _, sp in ipairs(spots) do
+                CT.Preview.Hide(sp.model, sp.pos, hideR)
+            end
+        else
+            CT.Preview.Hide(data.model, data.pos, hideR)
+            ghostPos = ghostPos or data.pos
+        end
+        local ghost = CT.Preview.SpawnGhost(data.model, ghostPos, data.rot)
         if ghost then
             SetEntityAlpha(ghost, 255, false)
             CT.typing = false
             CT.Gizmo.Start(ghost)
             CT.ApplyFocus()
-            cb({ ok = true })
+            cb({ ok = true, pos = ghostPos })
         else
             CT.Preview.Reset()
             cb({ ok = false, reason = 'This model failed to load, so it cannot be moved in game. Resolve it at file level instead.' })
