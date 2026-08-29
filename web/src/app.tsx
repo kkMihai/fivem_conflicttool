@@ -95,7 +95,7 @@ export default function App() {
             resolved = { ...prev }
             const queuedSet = new Set([...d.queued.assets, ...d.queued.entities])
             for (const id of d.queued.assets) {
-                if (!resolved[id]) resolved[id] = 'queued · applies on Resolve'
+                if (!resolved[id] || resolved[id].endsWith('applied live')) resolved[id] = 'queued · needs Resolve + restart'
             }
             for (const id of d.queued.entities) {
                 if (!resolved[id]) resolved[id] = 'applied live'
