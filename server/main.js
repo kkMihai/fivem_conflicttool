@@ -174,11 +174,11 @@ onNet('kk_ct:bury', d => {
     if (!d || !Array.isArray(d.targets) || !d.targets.length) return
     if (!Array.isArray(d.pos) || typeof d.hash !== 'number') return
     const by = GetPlayerName(src)
-    const from = d.pos
-    const to = [from[0], from[1], from[2] - 1000]
     let queued = 0
     for (const t of d.targets) {
         if (!t || !t.resource || !t.rel) continue
+        const from = Array.isArray(t.from) && t.from.length === 3 ? t.from.map(Number) : d.pos
+        const to = [from[0], from[1], from[2] - 1000]
         KKCT.decisions.addAsset({
             action: 'bury',
             conflictId: d.conflictId || null,

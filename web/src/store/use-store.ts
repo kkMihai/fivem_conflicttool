@@ -433,8 +433,21 @@ export const useStore = create<StoreState>((set, get) => ({
             get().pushHistory({ id: c.id, label: c.title, action: 'keep' })
             return
         }
-        const live = c.target ?? { pos: c.entity.pos, rot: c.entity.rot, model: c.entity.model }
-        const targetResources = c.target ? c.resources.slice(0, 1) : c.resources
+        const entPos = c.entity.pos
+        const entModel = c.entity.model
+        const live = c.target ?? { pos: entPos, rot: c.entity.rot, model: entModel }
+        const spots = c.target
+            ? [
+                  { model: c.target.model, pos: c.target.pos },
+                  { model: entModel, pos: entPos }
+              ]
+            : [{ model: entModel, pos: entPos }]
+        const targets = c.target
+            ? [
+                  c.resources[0]?.rel ? { resource: c.resources[0].name, rel: c.resources[0].rel, from: c.target.pos } : null,
+                  c.resources[1]?.rel ? { resource: c.resources[1].name, rel: c.resources[1].rel, from: entPos } : null
+              ].filter(Boolean)
+            : c.resources.filter(r => r.rel).map(r => ({ resource: r.name, rel: r.rel, from: entPos }))
         fetchNui('decide', {
             type: 'entity',
             action,
@@ -444,7 +457,8 @@ export const useStore = create<StoreState>((set, get) => ({
             guid: c.entity.guid,
             source: { resource: c.resources[1]?.name ?? c.resources[0]?.name, file: c.file },
             file: c.file,
-            targets: targetResources.filter(r => r.rel).map(r => ({ resource: r.name, rel: r.rel })),
+            targets,
+            spots,
             original: { pos: live.pos, rot: live.rot },
             new: extra?.new ?? null,
             hideRadius: c.entity.radius

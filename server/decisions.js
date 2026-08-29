@@ -54,6 +54,12 @@ KKCT.decisions = (() => {
             guid: (d.guid || 0) >>> 0,
             source: d.source || null,
             original: d.original,
+            spots: Array.isArray(d.spots)
+                ? d.spots
+                      .filter(sp => sp && typeof sp.model === 'number' && Array.isArray(sp.pos) && sp.pos.length === 3)
+                      .slice(0, 4)
+                      .map(sp => ({ model: sp.model >>> 0, pos: sp.pos.map(Number) }))
+                : null,
             new: d.new || null,
             hideRadius: typeof d.hideRadius === 'number' ? d.hideRadius : 0.25,
             createdAt: new Date().toISOString(),

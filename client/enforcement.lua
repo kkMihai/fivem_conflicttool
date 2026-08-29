@@ -53,10 +53,15 @@ local function applyDecisions(list)
     if not list then return end
     for _, d in ipairs(list) do
         if d.action == 'remove' or d.action == 'move' then
-            local p = d.original.pos
             local r = d.hideRadius or 0.25
-            hideInstance(d.hash, p, r)
-            applied[#applied + 1] = { x = p[1], y = p[2], z = p[3], r = r, hash = d.hash }
+            local spots = d.spots
+            if not (spots and #spots > 0) then
+                spots = { { model = d.hash, pos = d.original.pos } }
+            end
+            for _, sp in ipairs(spots) do
+                hideInstance(sp.model, sp.pos, r)
+                applied[#applied + 1] = { x = sp.pos[1], y = sp.pos[2], z = sp.pos[3], r = r, hash = sp.model }
+            end
             if d.action == 'move' and d.new then
                 CreateThread(function() spawnGhost(d) end)
             end
@@ -93,21 +98,31 @@ end)
 function CT.VerifyRemoval(d)
     if not (d and d.hash and d.original and d.original.pos) then return end
     if not (d.targets and #d.targets > 0) then return end
+    local spots = d.spots
+    if not (spots and #spots > 0) then
+        spots = { { model = d.hash, pos = d.original.pos } }
+    end
     CreateThread(function()
-        local p = d.original.pos
         local r = (d.hideRadius or 0.25) + 1.0
+        local persists = false
         for _ = 1, 3 do
             Wait(1200)
-            local obj = GetClosestObjectOfType(p[1], p[2], p[3], r, d.hash, false, false, false)
-            if not (obj and obj ~= 0 and DoesEntityExist(obj)) then return end
-            if DoesEntityBelongToThisScript(obj, true) then return end
+            persists = false
+            for _, sp in ipairs(spots) do
+                local obj = GetClosestObjectOfType(sp.pos[1], sp.pos[2], sp.pos[3], r, sp.model, false, false, false)
+                if obj and obj ~= 0 and DoesEntityExist(obj) and not DoesEntityBelongToThisScript(obj, true) then
+                    persists = true
+                    break
+                end
+            end
+            if not persists then return end
         end
         TriggerServerEvent('kk_ct:bury', {
             conflictId = d.conflictId,
             hash = d.hash,
             file = d.file,
             targets = d.targets,
-            pos = p
+            pos = d.original.pos
         })
         SendNUIMessage({
             action = 'notice',
