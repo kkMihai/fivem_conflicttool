@@ -4,7 +4,7 @@ lua54 'yes'
 
 name 'fivem_conflicttool'
 author 'kkMihai'
-version '1.2.1'
+version '1.2.2'
 description 'in-game map conflict scanner and resolver'
 repository 'https://github.com/kkMihai/fivem_conflicttool'
 license 'GPL-3.0-only'
