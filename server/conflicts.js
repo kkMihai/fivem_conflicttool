@@ -227,7 +227,7 @@ KKCT.conflicts = (() => {
                 file,
                 badges: [`${opts.winner.resource} ${opts.kind === 'entity-removed' ? 'removed' : opts.kind === 'entity-moved' ? 'moved' : 'changed'} · 1 unchanged`],
                 vanilla: vanillaSet ? vanillaSet.has(file) : false,
-                pos: e.p,
+                pos: opts.target && dist3(opts.target.pos, e.p) <= 100 ? opts.target.pos : e.p,
                 autoRes: null,
                 resources: [
                     { name: opts.winner.resource, rel: opts.winner.rel, size: opts.winner.size, sha1: short(opts.winner.sha1), status: opts.lines[0].status },

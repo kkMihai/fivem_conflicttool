@@ -100,6 +100,7 @@ function CT.VerifyRemoval(d)
             Wait(1200)
             local obj = GetClosestObjectOfType(p[1], p[2], p[3], r, d.hash, false, false, false)
             if not (obj and obj ~= 0 and DoesEntityExist(obj)) then return end
+            if DoesEntityBelongToThisScript(obj, true) then return end
         end
         TriggerServerEvent('kk_ct:bury', {
             conflictId = d.conflictId,

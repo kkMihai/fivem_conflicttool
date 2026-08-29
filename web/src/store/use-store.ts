@@ -406,7 +406,8 @@ export const useStore = create<StoreState>((set, get) => ({
         }
         fetchNui('occlBoxes', { boxes: c.boxes ?? null })
         if (c.entity) {
-            fetchNui('collisionBox', { on: true, model: c.entity.model, pos: c.entity.pos, quat: c.entity.rot })
+            const live = c.target ?? { pos: c.entity.pos, rot: c.entity.rot, model: c.entity.model }
+            fetchNui('collisionBox', { on: true, model: live.model, pos: live.pos, quat: live.rot })
         } else {
             fetchNui('collisionBox', { on: false })
         }
@@ -432,17 +433,19 @@ export const useStore = create<StoreState>((set, get) => ({
             get().pushHistory({ id: c.id, label: c.title, action: 'keep' })
             return
         }
+        const live = c.target ?? { pos: c.entity.pos, rot: c.entity.rot, model: c.entity.model }
+        const targetResources = c.target ? c.resources.slice(0, 1) : c.resources
         fetchNui('decide', {
             type: 'entity',
             action,
             conflictId: c.id,
             archetype: c.entity.name,
-            hash: c.entity.model,
+            hash: live.model,
             guid: c.entity.guid,
             source: { resource: c.resources[1]?.name ?? c.resources[0]?.name, file: c.file },
             file: c.file,
-            targets: c.resources.filter(r => r.rel).map(r => ({ resource: r.name, rel: r.rel })),
-            original: { pos: c.entity.pos, rot: c.entity.rot },
+            targets: targetResources.filter(r => r.rel).map(r => ({ resource: r.name, rel: r.rel })),
+            original: { pos: live.pos, rot: live.rot },
             new: extra?.new ?? null,
             hideRadius: c.entity.radius
         })
@@ -482,12 +485,13 @@ export const useStore = create<StoreState>((set, get) => ({
             fetchNui('previewEntity', { op: 'reset' })
             set({ preview: null })
         }
+        const live = c.target ?? { pos: c.entity.pos, rot: c.entity.rot, model: c.entity.model }
         const res = await fetchNui<{ ok?: boolean; reason?: string }>('startTransform', {
-            model: c.entity.model,
-            pos: c.entity.pos,
-            rot: c.entity.rot,
+            model: live.model,
+            pos: live.pos,
+            rot: live.rot,
             radius: c.entity.radius,
-            newPos: c.target?.pos ?? null
+            newPos: null
         })
         if (res && res.ok === false) {
             if (res.reason) get().setNotice(res.reason)
@@ -496,11 +500,11 @@ export const useStore = create<StoreState>((set, get) => ({
         set({
             transform: {
                 conflictId: c.id,
-                model: c.entity.model,
+                model: live.model,
                 name: c.entity.name,
-                pos: c.entity.pos,
+                pos: live.pos,
                 rot: [0, 0, 0],
-                quat: c.entity.rot,
+                quat: live.rot,
                 mode: 'translate',
                 grid: false
             }

@@ -153,7 +153,32 @@ export default function App() {
 
     useNuiEvent<any>('scanError', () => useStore.setState({ scanning: false, scanProgress: null }))
 
-    useNuiEvent<{ id: string }>('worldSelect', d => useStore.getState().select(d.id, false))
+    useNuiEvent<{ id?: string; model?: number; hit?: number[] }>('worldSelect', d => {
+        const s = useStore.getState()
+        if (d.id) {
+            s.select(d.id, false)
+            return
+        }
+        if (!d.model) return
+        const candidates = s.conflicts.filter(c => c.entity?.model === d.model || c.target?.model === d.model)
+        if (!candidates.length) return
+        let best = candidates[0]
+        if (d.hit && candidates.length > 1) {
+            let bestDist = Infinity
+            for (const c of candidates) {
+                if (!c.pos) continue
+                const dx = c.pos[0] - d.hit[0]
+                const dy = c.pos[1] - d.hit[1]
+                const dz = c.pos[2] - d.hit[2]
+                const dist = dx * dx + dy * dy + dz * dz
+                if (dist < bestDist) {
+                    bestDist = dist
+                    best = c
+                }
+            }
+        }
+        s.select(best.id, false)
+    })
 
     useNuiEvent<{ id: string; bx?: number; x: number; y: number }>('worldContext', d => {
         const s = useStore.getState()

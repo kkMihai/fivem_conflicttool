@@ -173,7 +173,7 @@ local function probe()
         end
     end
     local marker, markerT = pickMarker(origin, dir, range)
-    return marker, model, markerT, origin, dir, range
+    return marker, model, markerT, origin, dir, range, hit and coords or nil
 end
 
 local function cursorNorm()
@@ -186,9 +186,13 @@ end
 
 function PK.Click()
     if not CT.open or CT.mode == 'transform' or not CT.picking then return end
-    local target, model = probe()
+    local target, model, _, _, _, _, hitPos = probe()
     if target then
         SendNUIMessage({ action = 'worldSelect', data = { id = target.id, model = model ~= 0 and model or nil } })
+        return
+    end
+    if model ~= 0 then
+        SendNUIMessage({ action = 'worldSelect', data = { model = model, hit = hitPos and { hitPos.x, hitPos.y, hitPos.z } or nil } })
         return
     end
     SendNUIMessage({ action = 'closeContext' })
