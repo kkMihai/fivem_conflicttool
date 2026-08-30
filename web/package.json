@@ -1,7 +1,7 @@
 {
     "name": "fivem-conflicttool-ui",
     "private": true,
-    "version": "1.2.5",
+    "version": "1.2.6",
     "license": "GPL-3.0-only",
     "type": "module",
     "scripts": {
