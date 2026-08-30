@@ -36,9 +36,14 @@ function scanMeta(scan) {
     let autoRes = 0
     let newCount = 0
     let ignoredCount = 0
+    let hiddenCount = 0
     for (const c of scan.conflicts) {
         if (c.ignored) {
             ignoredCount++
+            continue
+        }
+        if (c.hidden) {
+            hiddenCount++
             continue
         }
         counts.all++
@@ -57,6 +62,7 @@ function scanMeta(scan) {
         autoRes,
         newCount,
         ignoredCount,
+        hiddenCount,
         parseErrorCount: scan.parseErrors.length
     }
 }

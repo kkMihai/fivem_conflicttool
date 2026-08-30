@@ -1,4 +1,4 @@
-import { ArrowCircleUp, ArrowUUpLeft, ClockCounterClockwise, Eye, EyeSlash, Keyboard, Pulse, ShieldCheck, Sparkle, Stack } from '@phosphor-icons/react'
+import { ArrowCircleUp, ArrowUUpLeft, ArrowLineDown, ClockCounterClockwise, Eye, EyeSlash, Keyboard, Pulse, ShieldCheck, Sparkle, Stack } from '@phosphor-icons/react'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
@@ -33,10 +33,13 @@ function DockHeader() {
     const setOnlyNew = useStore(s => s.setOnlyNew)
     const showIgnored = useStore(s => s.showIgnored)
     const setShowIgnored = useStore(s => s.setShowIgnored)
+    const showHidden = useStore(s => s.showHidden)
+    const setShowHidden = useStore(s => s.setShowHidden)
     const version = useStore(s => s.version)
     const outdated = !!version?.updateAvailable && !!version.latest
     const newCount = scanMeta?.newCount ?? 0
     const ignoredCount = scanMeta?.ignoredCount ?? 0
+    const hiddenCount = scanMeta?.hiddenCount ?? 0
 
     return (
         <div className="border-b border-border px-3 pb-2.5 pt-3">
@@ -126,6 +129,21 @@ function DockHeader() {
                     >
                         <EyeSlash className="h-3 w-3" aria-hidden="true" />
                         Ignored ({ignoredCount})
+                    </button>
+                )}
+                {hiddenCount > 0 && (
+                    <button
+                        type="button"
+                        onClick={() => setShowHidden(!showHidden)}
+                        aria-pressed={showHidden}
+                        title="Show props that sit far under the map in every copy, so no load order makes them visible"
+                        className={cn(
+                            'flex min-h-6 items-center gap-1 whitespace-nowrap rounded-full border px-2 py-1 text-3xs font-semibold transition-colors duration-150 cursor-pointer',
+                            showHidden ? 'border-ring/50 bg-accent text-foreground' : 'border-border bg-card text-muted-foreground hover:border-ring/30 hover:text-foreground'
+                        )}
+                    >
+                        <ArrowLineDown className="h-3 w-3" aria-hidden="true" />
+                        Under map ({hiddenCount})
                     </button>
                 )}
             </div>

@@ -43,6 +43,40 @@ KKCT.conflicts = (() => {
         return Math.abs(a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3])
     }
 
+    const HIDDEN_DROP = 200
+    const HIDDEN_DEEP = -5000
+    const HIDDEN_SCREEN = -250
+    const NEIGHBOUR_R2 = 150 * 150
+
+    const hiddenCache = new WeakMap()
+
+    function hiddenEntity(e, entities) {
+        if (e.p[2] < HIDDEN_DEEP) return true
+        if (e.p[2] >= HIDDEN_SCREEN) return false
+        if (!entities) return false
+        let seen = hiddenCache.get(entities)
+        if (!seen) {
+            seen = new Map()
+            hiddenCache.set(entities, seen)
+        }
+        const key = `${e.a}_${e.g}_${rpos(e.p)}`
+        const memo = seen.get(key)
+        if (memo !== undefined) return memo
+        const near = []
+        for (const o of entities) {
+            if (o === e || o.mlo) continue
+            const dx = o.p[0] - e.p[0], dy = o.p[1] - e.p[1]
+            if (dx * dx + dy * dy <= NEIGHBOUR_R2) near.push(o.p[2])
+        }
+        let result = false
+        if (near.length) {
+            near.sort((a, b) => a - b)
+            result = near[Math.floor(near.length / 2)] - e.p[2] > HIDDEN_DROP
+        }
+        seen.set(key, result)
+        return result
+    }
+
     function dist3(a, b) {
         const dx = a[0] - b[0], dy = a[1] - b[1], dz = a[2] - b[2]
         return Math.sqrt(dx * dx + dy * dy + dz * dz)
@@ -82,7 +116,7 @@ KKCT.conflicts = (() => {
             if (entries.length < 2) {
                 if (winner.ext === 'ymap' && winner.parsed && winner.parsed.entities.length) {
                     for (const e of winner.parsed.entities) {
-                        if (!e.mlo) uniqueEntities.push({ res: winner.resource, file: key, e })
+                        if (!e.mlo) uniqueEntities.push({ res: winner.resource, file: key, e, all: winner.parsed.entities })
                     }
                 }
                 continue
@@ -196,7 +230,7 @@ KKCT.conflicts = (() => {
                             { res: loser.resource, status: 'ships it unchanged', bad: false }
                         ],
                         summary: `${winner.resource} removed this object from ${key}, but ${loser.resource} still ships the original file that places it.`,
-                        winner, loser, target: null
+                        winner, loser, target: null, hidden: hiddenEntity(le, loser.parsed.entities)
                     }))
                 } else if (le.g && we.g === le.g && we.a !== le.a) {
                     emitted++
@@ -207,18 +241,25 @@ KKCT.conflicts = (() => {
                             { res: loser.resource, status: `still places the original ${name}`, bad: false }
                         ],
                         summary: `${winner.resource} replaced this object with a different model (${name} -> ${resolveName(we.a)}), but ${loser.resource} still places the original.`,
-                        winner, loser, target: { pos: we.p, rot: we.r, model: we.a }
+                        winner, loser, target: { pos: we.p, rot: we.r, model: we.a },
+                        hidden: hiddenEntity(we, winner.parsed.entities) && hiddenEntity(le, loser.parsed.entities)
                     }))
                 } else if (dist3(we.p, le.p) > 0.05 || quatDot(we.r, le.r) < 0.9999) {
                     emitted++
+                    const wHid = hiddenEntity(we, winner.parsed.entities)
+                    const lHid = hiddenEntity(le, loser.parsed.entities)
                     out.push(entityConflict(nid('c_prop'), key, name, le, {
                         kind: 'entity-moved',
                         lines: [
-                            { res: winner.resource, status: `moved it ${dist3(we.p, le.p).toFixed(2)}m`, bad: true },
-                            { res: loser.resource, status: 'ships the original position', bad: false }
+                            { res: winner.resource, status: wHid ? 'hides it under the map' : `moved it ${dist3(we.p, le.p).toFixed(2)}m`, bad: true },
+                            { res: loser.resource, status: lHid ? 'hides it under the map' : 'ships the original position', bad: !!lHid }
                         ],
-                        summary: `${winner.resource} moved this object, but ${loser.resource} still ships the original placement. Which one you see depends on load order.`,
-                        winner, loser, target: { pos: we.p, rot: we.r, model: we.a }
+                        summary: wHid
+                            ? `${winner.resource} hides this object far under the map, but ${loser.resource} still places it in the open. Which one you see depends on load order.`
+                            : lHid
+                              ? `${loser.resource} hides this object far under the map, but ${winner.resource} places it in the open. Which one you see depends on load order.`
+                              : `${winner.resource} moved this object, but ${loser.resource} still ships the original placement. Which one you see depends on load order.`,
+                        winner, loser, target: { pos: we.p, rot: we.r, model: we.a }, hidden: wHid && lHid
                     }))
                 }
             }
@@ -236,6 +277,7 @@ KKCT.conflicts = (() => {
                 file,
                 badges: [`${opts.winner.resource} ${opts.kind === 'entity-removed' ? 'removed' : opts.kind === 'entity-moved' ? 'moved' : 'changed'} · 1 unchanged`],
                 vanilla: vanillaSet ? vanillaSet.has(file) : false,
+                hidden: !!opts.hidden,
                 pos: opts.target && dist3(opts.target.pos, e.p) <= 100 ? opts.target.pos : e.p,
                 autoRes: null,
                 resources: [
@@ -283,6 +325,7 @@ KKCT.conflicts = (() => {
                         file: `${a.file} + ${b.file}`,
                         badges: ['double placement'],
                         vanilla: false,
+                        hidden: hiddenEntity(a.e, a.all) && hiddenEntity(b.e, b.all),
                         pos: a.e.p,
                         autoRes: 'props',
                         resources: [

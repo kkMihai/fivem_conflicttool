@@ -21,6 +21,7 @@ interface StoreState {
     search: string
     showVanilla: boolean
     showIgnored: boolean
+    showHidden: boolean
     onlyNew: boolean
     hiddenExts: Record<string, true>
     hiddenKinds: Record<string, true>
@@ -56,6 +57,7 @@ interface StoreState {
     setSearch: (s: string) => void
     setShowVanilla: (v: boolean) => void
     setShowIgnored: (v: boolean) => void
+    setShowHidden: (v: boolean) => void
     setOnlyNew: (v: boolean) => void
     toggleExt: (ext: string) => void
     showAllExts: () => void
@@ -117,6 +119,7 @@ export const useStore = create<StoreState>((set, get) => ({
     search: '',
     showVanilla: true,
     showIgnored: false,
+    showHidden: false,
     onlyNew: false,
     hiddenExts: {},
     hiddenKinds: {},
@@ -186,6 +189,11 @@ export const useStore = create<StoreState>((set, get) => ({
 
     setShowIgnored: v => {
         set({ showIgnored: v })
+        get().pushMarkers()
+    },
+
+    setShowHidden: v => {
+        set({ showHidden: v })
         get().pushMarkers()
     },
 
@@ -368,13 +376,14 @@ export const useStore = create<StoreState>((set, get) => ({
     },
 
     filtered: () => {
-        const { conflicts, tab, search, showVanilla, showIgnored, onlyNew, resourceFilter, hiddenExts, hiddenKinds } = get()
+        const { conflicts, tab, search, showVanilla, showIgnored, showHidden, onlyNew, resourceFilter, hiddenExts, hiddenKinds } = get()
         const q = search.trim().toLowerCase()
         return conflicts.filter(c => {
             if (hiddenExts[extOf(c.file)]) return false
             if (hiddenKinds[c.akind ?? 'other']) return false
             if (tab !== 'all' && c.cat !== tab) return false
             if (!showIgnored && c.ignored) return false
+            if (!showHidden && c.hidden) return false
             if (onlyNew && !c.isNew) return false
             if (!showVanilla && c.vanilla) return false
             if (resourceFilter && !c.resources.some(r => r.name === resourceFilter)) return false

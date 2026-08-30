@@ -103,6 +103,31 @@ KKCT.resolver = (() => {
         return [from[0], from[1], from[2] - depth]
     }
 
+    function sharedBuryTarget(job) {
+        const targets = (job.targets || []).filter(t => Array.isArray(t.from))
+        if (!targets.length) return null
+        let anchor = targets[0]
+        for (const t of targets) {
+            if (t.from[2] < anchor.from[2]) anchor = t
+        }
+        let parsed = null
+        try {
+            const root = resourceRoot(anchor.resource)
+            if (root) parsed = KKCT.ymap.parse(fs.readFileSync(path.join(root, anchor.rel)))
+        } catch {}
+        const arch = (typeof anchor.model === 'number' ? anchor.model : job.hash) >>> 0
+        return buryTarget(parsed || { entities: [] }, arch, anchor.from)
+    }
+
+    function isAt(parsed, archetype, to) {
+        return parsed.entities.some(e =>
+            e.a === archetype &&
+            Math.abs(e.p[0] - to[0]) < 0.05 &&
+            Math.abs(e.p[1] - to[1]) < 0.05 &&
+            Math.abs(e.p[2] - to[2]) < 0.05
+        )
+    }
+
     function isBuried(parsed, archetype, from) {
         return parsed.entities.some(e => e.a === archetype && e.p[2] < from[2] - (BURY_MIN - 100))
     }
@@ -247,16 +272,17 @@ KKCT.resolver = (() => {
             step++
             progress({ step, total: pending.length + entityJobs.length, label: job.archetype || 'prop edit' })
             let touched = false
+            const sharedTo = job.action === 'remove' ? sharedBuryTarget(job) : null
             for (const t of job.targets) {
                 try {
                     const arch = (typeof t.model === 'number' ? t.model : job.hash) >>> 0
                     const from = t.from
                     const b = ensureBackup(t.resource, t.rel)
                     const buf = fs.readFileSync(b.src)
-                    const to = job.action === 'remove' ? buryTarget(KKCT.ymap.parse(buf), arch, from) : job.new.pos
+                    const to = sharedTo || (job.action === 'remove' ? buryTarget(KKCT.ymap.parse(buf), arch, from) : job.new.pos)
                     const rot = job.action === 'move' && Array.isArray(job.new.rot) ? job.new.rot : undefined
                     const verify = parsed => {
-                        if (job.action === 'remove') return isBuried(parsed, arch, from)
+                        if (job.action === 'remove') return isAt(parsed, arch, to) || isBuried(parsed, arch, from)
                         return parsed.entities.some(e => {
                             if (e.a !== arch) return false
                             if (Math.abs(e.p[0] - to[0]) > 0.05 || Math.abs(e.p[1] - to[1]) > 0.05 || Math.abs(e.p[2] - to[2]) > 0.05) return false

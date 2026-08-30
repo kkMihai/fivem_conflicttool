@@ -24,6 +24,7 @@ export interface Conflict {
     id: string
     key: string
     ignored?: boolean
+    hidden?: boolean
     isNew?: boolean
     cat: Category
     akind?: AssetKind
@@ -56,6 +57,7 @@ export interface ScanMeta {
     autoRes: number
     newCount?: number
     ignoredCount?: number
+    hiddenCount?: number
     parseErrorCount: number
 }
 

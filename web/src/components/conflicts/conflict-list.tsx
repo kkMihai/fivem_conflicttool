@@ -47,6 +47,7 @@ export function ConflictList() {
     useStore(s => s.showIgnored)
     useStore(s => s.onlyNew)
     useStore(s => s.showVanilla)
+    useStore(s => s.showHidden)
     const checked = useStore(s => s.checked)
     const toggleChecked = useStore(s => s.toggleChecked)
     const clearChecked = useStore(s => s.clearChecked)
