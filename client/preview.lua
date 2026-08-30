@@ -22,7 +22,7 @@ end
 
 local function unhide(h)
     RemoveModelHide(h.x, h.y, h.z, h.r, h.hash, false)
-    if h.obj and DoesEntityExist(h.obj) then
+    if h.obj and DoesEntityExist(h.obj) and GetEntityModel(h.obj) == h.hash then
         SetEntityVisible(h.obj, true, false)
         SetEntityCollision(h.obj, true, true)
     end
@@ -52,12 +52,13 @@ function PV.SpawnGhost(model, pos, rot)
 end
 
 function PV.RemoveGhost()
-    if PV.ghost and DoesEntityExist(PV.ghost) then
-        SetEntityAsMissionEntity(PV.ghost, false, true)
-        DeleteEntity(PV.ghost)
-    end
+    local g, m = PV.ghost, PV.ghostModel
     PV.ghost = nil
     PV.ghostModel = nil
+    if g and DoesEntityExist(g) and GetEntityModel(g) == m then
+        SetEntityAsMissionEntity(g, false, true)
+        DeleteEntity(g)
+    end
 end
 
 function PV.Reset()

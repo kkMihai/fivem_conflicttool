@@ -135,9 +135,10 @@ node tools/test-assetkind.mjs [path-to-resources-folder]
 node tools/test-apply.mjs
 node tools/test-bury.mjs
 lua tools/test-extrude.lua
+lua tools/test-ghostguard.lua
 ```
 
-`test-scan.mjs` runs the scan pipeline against a resources folder outside FiveM. The occlusion, asset kind and extrude scripts check the resolver math on their own, and take an optional path to run against real files as well.
+`test-scan.mjs` runs the scan pipeline against a resources folder outside FiveM. The occlusion, asset kind and extrude scripts check the resolver math on their own, and take an optional path to run against real files as well. `test-ghostguard.lua` runs the client hide and ghost code against stub natives.
 
 ## Support
 

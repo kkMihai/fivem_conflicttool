@@ -7,10 +7,10 @@ local function clearApplied()
     for _, h in ipairs(applied) do
         RemoveModelHide(h.x, h.y, h.z, h.r, h.hash, false)
     end
-    for _, obj in ipairs(ghosts) do
-        if DoesEntityExist(obj) then
-            SetEntityAsMissionEntity(obj, false, true)
-            DeleteEntity(obj)
+    for _, g in ipairs(ghosts) do
+        if DoesEntityExist(g.h) and GetEntityModel(g.h) == g.hash then
+            SetEntityAsMissionEntity(g.h, false, true)
+            DeleteEntity(g.h)
         end
     end
     applied = {}
@@ -32,7 +32,7 @@ local function spawnGhost(d)
         FreezeEntityPosition(obj, true)
         SetEntityCollision(obj, true, true)
         SetEntityInvincible(obj, true)
-        ghosts[#ghosts + 1] = obj
+        ghosts[#ghosts + 1] = { h = obj, hash = hash }
     end
     SetModelAsNoLongerNeeded(hash)
 end
@@ -41,7 +41,7 @@ local function hideInstance(hash, p, r)
     local x, y, z = p[1] + 0.0, p[2] + 0.0, p[3] + 0.0
     CreateModelHideExcludingScriptObjects(x, y, z, r + 0.0, hash, true)
     local obj = GetClosestObjectOfType(x, y, z, r + 0.5, hash, false, false, false)
-    if obj and obj ~= 0 then
+    if obj and obj ~= 0 and not DoesEntityBelongToThisScript(obj, true) then
         SetEntityAsMissionEntity(obj, true, true)
         DeleteEntity(obj)
     end

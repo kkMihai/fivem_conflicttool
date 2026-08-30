@@ -84,7 +84,7 @@ interface StoreState {
     filtered: () => Conflict[]
     select: (id: string | null, teleport?: boolean) => void
     cycle: (dir: 1 | -1) => void
-    decideEntity: (c: Conflict, action: 'keep' | 'remove' | 'move', extra?: any) => void
+    decideEntity: (c: Conflict, action: 'keep' | 'remove' | 'move', extra?: any) => Promise<void>
     decideAsset: (c: Conflict, keepResource?: string) => void
     startMove: (c: Conflict) => Promise<void>
     endMove: (commit: boolean) => Promise<void>
@@ -337,7 +337,9 @@ export const useStore = create<StoreState>((set, get) => ({
     bulkDecide: action => {
         const s = get()
         const targets = s.conflicts.filter(c => s.checked[c.id] && c.entity && !s.resolved[c.id])
-        for (const c of targets) get().decideEntity(c, action)
+        void (async () => {
+            for (const c of targets) await get().decideEntity(c, action)
+        })()
         set({ checked: {}, lastChecked: null })
     },
 
@@ -423,8 +425,11 @@ export const useStore = create<StoreState>((set, get) => ({
         get().select(next.id)
     },
 
-    decideEntity: (c, action, extra) => {
+    decideEntity: async (c, action, extra) => {
         if (!c.entity) return
+        if (get().transform && action !== 'move') {
+            await get().endMove(false)
+        }
         if (get().preview) {
             fetchNui('previewEntity', { op: 'reset' })
             set({ preview: null })
