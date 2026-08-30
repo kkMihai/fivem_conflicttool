@@ -79,16 +79,37 @@ KKCT.resolver = (() => {
         return p ? p.replace(/\//g, path.sep) : null
     }
 
+    const BURY_MIN = 1000
+    const BURY_MAX = 30000
+
+    function buryTarget(parsed, archetype, from) {
+        let lod = 0
+        for (const e of parsed.entities || []) {
+            if (e.a !== archetype) continue
+            if (Math.abs(e.p[0] - from[0]) > 0.05 || Math.abs(e.p[1] - from[1]) > 0.05 || Math.abs(e.p[2] - from[2]) > 0.05) continue
+            lod = Math.max(e.ld || 0, e.cld || 0)
+            break
+        }
+        const depth = Math.min(BURY_MAX, Math.max(BURY_MIN, lod + 1000))
+        return [from[0], from[1], from[2] - depth]
+    }
+
+    function isBuried(parsed, archetype, from) {
+        return parsed.entities.some(e => e.a === archetype && e.p[2] < from[2] - (BURY_MIN - 100))
+    }
+
     function buryInPlace(src, d, backup) {
-        if (!d.entity || !Array.isArray(d.entity.from) || !Array.isArray(d.entity.to)) {
+        if (!d.entity || !Array.isArray(d.entity.from)) {
             throw new Error('bury decision has no entity')
         }
         const archetype = d.entity.archetype >>> 0
-        const result = KKCT.ymap.patch(fs.readFileSync(src), [
-            { kind: 'entityPos', archetype, from: d.entity.from, to: d.entity.to }
+        const buf = fs.readFileSync(src)
+        const to = buryTarget(KKCT.ymap.parse(buf), archetype, d.entity.from)
+        const result = KKCT.ymap.patch(buf, [
+            { kind: 'entityPos', archetype, from: d.entity.from, to }
         ])
         writeBack(src, result.buf, backup, parsed =>
-            parsed.entities.some(e => e.a === archetype && Math.abs(e.p[2] - d.entity.to[2]) < 0.05)
+            parsed.entities.some(e => e.a === archetype && Math.abs(e.p[2] - to[2]) < 0.05)
         )
     }
 
@@ -217,19 +238,23 @@ KKCT.resolver = (() => {
                 try {
                     const arch = (typeof t.model === 'number' ? t.model : job.hash) >>> 0
                     const from = t.from
-                    const to = job.action === 'remove' ? [from[0], from[1], from[2] - 1000] : job.new.pos
-                    const rot = job.action === 'move' && Array.isArray(job.new.rot) ? job.new.rot : undefined
-                    const verify = parsed => parsed.entities.some(e => {
-                        if (e.a !== arch) return false
-                        if (Math.abs(e.p[0] - to[0]) > 0.05 || Math.abs(e.p[1] - to[1]) > 0.05 || Math.abs(e.p[2] - to[2]) > 0.05) return false
-                        if (!rot) return true
-                        const dot = e.r[0] * rot[0] + e.r[1] * rot[1] + e.r[2] * rot[2] + e.r[3] * rot[3]
-                        return Math.abs(dot) > 0.999
-                    })
                     const b = ensureBackup(t.resource, t.rel)
+                    const buf = fs.readFileSync(b.src)
+                    const to = job.action === 'remove' ? buryTarget(KKCT.ymap.parse(buf), arch, from) : job.new.pos
+                    const rot = job.action === 'move' && Array.isArray(job.new.rot) ? job.new.rot : undefined
+                    const verify = parsed => {
+                        if (job.action === 'remove') return isBuried(parsed, arch, from)
+                        return parsed.entities.some(e => {
+                            if (e.a !== arch) return false
+                            if (Math.abs(e.p[0] - to[0]) > 0.05 || Math.abs(e.p[1] - to[1]) > 0.05 || Math.abs(e.p[2] - to[2]) > 0.05) return false
+                            if (!rot) return true
+                            const dot = e.r[0] * rot[0] + e.r[1] * rot[1] + e.r[2] * rot[2] + e.r[3] * rot[3]
+                            return Math.abs(dot) > 0.999
+                        })
+                    }
                     let result = null
                     try {
-                        result = KKCT.ymap.patch(fs.readFileSync(b.src), [{ kind: 'entityPos', archetype: arch, from, to, rot }])
+                        result = KKCT.ymap.patch(buf, [{ kind: 'entityPos', archetype: arch, from, to, rot }])
                     } catch (patchErr) {
                         if (verify(KKCT.ymap.parse(fs.readFileSync(b.src)))) {
                             touched = true

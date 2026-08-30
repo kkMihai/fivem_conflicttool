@@ -151,7 +151,7 @@ function CT.VerifyRemoval(d)
         })
         SendNUIMessage({
             action = 'notice',
-            data = 'The game put this object back, so it cannot be removed at runtime. Queued a file edit that drops it 1000 units below the map. Run Resolve, then restart.'
+            data = 'The game put this object back, so it cannot be removed at runtime. Queued a file edit that drops it far below the map, past its own draw distance. Run Resolve, then restart.'
         })
     end)
 end

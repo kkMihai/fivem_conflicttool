@@ -121,8 +121,10 @@ if (movedEnt) {
     const dot = movedEnt.r[0] * wantRot[0] + movedEnt.r[1] * wantRot[1] + movedEnt.r[2] * wantRot[2] + movedEnt.r[3] * wantRot[3]
     check('moved entity carries the new rotation', Math.abs(dot) > 0.999, `dot ${dot.toFixed(5)}`)
 }
-const buriedEnt = parsed.entities.find(e => e.a === entB.a && Math.abs(e.p[2] - (entB.p[2] - 1000)) < 0.05)
-check('removed entity buried at z-1000', !!buriedEnt, buriedEnt ? String(buriedEnt.p[2]) : 'missing')
+const wantDepth = Math.min(30000, Math.max(1000, Math.max(entB.ld || 0, entB.cld || 0) + 1000))
+const buriedEnt = parsed.entities.find(e => e.a === entB.a && Math.abs(e.p[2] - (entB.p[2] - wantDepth)) < 0.05)
+check('removed entity buried past its own draw distance', !!buriedEnt, `lodDist ${Math.max(entB.ld || 0, entB.cld || 0)}, depth ${wantDepth}, z ${buriedEnt ? buriedEnt.p[2] : 'missing'}`)
+check('bury depth clears the lod distance', wantDepth > Math.max(entB.ld || 0, entB.cld || 0))
 
 const recs = KKCT.decisions.entities()
 check('move record marked applied', recs.find(e => e.conflictId === 'c_move')?.state === 'applied')
