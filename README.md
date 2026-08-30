@@ -124,22 +124,6 @@ The file list can be exported with an RPF explorer. Only names are stored, and n
 
 Each bundle has a `manifest.json`, and Restore skips files that changed since the bundle was made.
 
-## Developer tools
-
-```
-node tools/verify-parser.mjs <file.ymap|ytyp|ybn> [--full]
-node tools/verify-patch.mjs <file.ymap>
-node tools/test-scan.mjs <path-to-resources-folder>
-node tools/test-occlusion.mjs [file.ymap with a box occluder]
-node tools/test-assetkind.mjs [path-to-resources-folder]
-node tools/test-apply.mjs
-node tools/test-bury.mjs
-lua tools/test-extrude.lua
-lua tools/test-ghostguard.lua
-```
-
-`test-scan.mjs` runs the scan pipeline against a resources folder outside FiveM. The occlusion, asset kind and extrude scripts check the resolver math on their own, and take an optional path to run against real files as well. `test-ghostguard.lua` runs the client hide and ghost code against stub natives.
-
 ## Support
 
 If this tool saved you some pain, you can support it on [Ko-fi](https://ko-fi.com/kkmihai).
