@@ -162,8 +162,12 @@ KKCT.resolver = (() => {
 
     async function apply(progress) {
         const pending = KKCT.decisions.pendingAssets()
-        const entities = KKCT.decisions.entities()
-        const bundleId = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+        const fresh = KKCT.decisions.entities().filter(e => (e.state || 'live') === 'live' && !e.reported)
+        const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+        let bundleId = stamp
+        for (let n = 2; fs.existsSync(path.join(backupsDir, bundleId)); n++) {
+            bundleId = `${stamp}-${n}`
+        }
         const bundleDir = path.join(backupsDir, bundleId)
         const moves = []
         const errors = []
@@ -291,8 +295,8 @@ KKCT.resolver = (() => {
         }
 
         const summary = {
-            removed: entities.filter(e => e.action === 'remove').length,
-            moved: entities.filter(e => e.action === 'move').length,
+            removed: fresh.filter(e => e.action === 'remove').length,
+            moved: fresh.filter(e => e.action === 'move').length,
             buried: moves.filter(m => m.kind === 'edit' && !m.clip && !m.move).length,
             clipped: moves.filter(m => m.kind === 'edit' && m.clip).length,
             filedMoves: moves.filter(m => m.move).length,
@@ -314,8 +318,10 @@ KKCT.resolver = (() => {
             fs.writeFileSync(path.join(bundleDir, 'manifest.json'), JSON.stringify(manifest, null, 2))
         }
 
-        for (const e of entities) {
+        const retryIds = new Set(entityJobs.filter(j => (j.state || 'live') === 'live').map(j => j.id))
+        for (const e of fresh) {
             if (e.conflictId) appliedIds.add(e.conflictId)
+            if (!retryIds.has(e.id)) e.reported = true
         }
 
         KKCT.decisions.save()

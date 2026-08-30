@@ -83,6 +83,7 @@ KKCT.backups = (() => {
             if (e.bundleId === id && e.state === 'applied') {
                 e.state = 'live'
                 e.bundleId = null
+                e.reported = false
             }
         }
         KKCT.decisions.save()
