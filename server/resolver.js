@@ -82,7 +82,16 @@ KKCT.resolver = (() => {
     const BURY_MIN = 1000
     const BURY_MAX = 30000
 
+    function buryOverride() {
+        if (typeof GetConvar !== 'function') return null
+        const v = Math.abs(parseFloat(GetConvar('fivem_conflicttool_bury_depth', '')))
+        if (!Number.isFinite(v) || v <= 0) return null
+        return Math.min(100000, Math.max(BURY_MIN, v))
+    }
+
     function buryTarget(parsed, archetype, from) {
+        const forced = buryOverride()
+        if (forced) return [from[0], from[1], from[2] - forced]
         let lod = 0
         for (const e of parsed.entities || []) {
             if (e.a !== archetype) continue

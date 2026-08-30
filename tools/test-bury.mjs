@@ -5,6 +5,8 @@ import os from 'os'
 import crypto from 'crypto'
 import { fileURLToPath } from 'url'
 
+globalThis.GetConvar = (k, d) => (process.env.KKCT_BURY ? (k === 'fivem_conflicttool_bury_depth' ? process.env.KKCT_BURY : d) : d)
+
 const require = createRequire(import.meta.url)
 const dir = path.dirname(fileURLToPath(import.meta.url))
 
@@ -61,7 +63,7 @@ const result = await KKCT.resolver.apply(() => {})
 console.log('apply:', JSON.stringify(result.summary), 'errors:', JSON.stringify(result.errors))
 
 const after = KKCT.ymap.parse(fs.readFileSync(testFile))
-const depth = Math.min(30000, Math.max(1000, Math.max(ent.ld || 0, ent.cld || 0) + 1000))
+const depth = process.env.KKCT_BURY ? Math.abs(parseFloat(process.env.KKCT_BURY)) : Math.min(30000, Math.max(1000, Math.max(ent.ld || 0, ent.cld || 0) + 1000))
 const buried = after.entities.find(e => e.a === ent.a && Math.abs(e.p[2] - (ent.p[2] - depth)) < 0.05)
 console.log('file still present:', fs.existsSync(testFile))
 console.log('entity buried:', !!buried, buried ? `now at ${buried.p.join(', ')}` : '')

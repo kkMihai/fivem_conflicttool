@@ -58,6 +58,17 @@ Changing files inside other resources requires a filesystem grant. Either of the
 
 Without a grant, scanning, previewing and entity decisions still work, and only the file changes are blocked. The Apply dialog reports it when that happens.
 
+## Settings
+
+Optional convars, set before the resource starts:
+
+```
+set fivem_conflicttool_bury_depth -99000
+set fivem_conflicttool_update_check false
+```
+
+`bury_depth` forces how far under the map a buried prop drops, written with or without the minus sign. Left unset, each prop drops just past its own draw distance, which is the smallest drop that keeps it from rendering.
+
 ## Controls
 
 | Key                     | Action                                              |
