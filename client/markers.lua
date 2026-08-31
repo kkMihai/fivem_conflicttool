@@ -51,7 +51,8 @@ CreateThread(function()
             local camPos = CT.Freecam.active and CT.Freecam.pos or GetGameplayCamCoord()
             local cx, cy = camPos.x, camPos.y
             local fwd = CT.CamForward()
-            local hfx, hfy = fwd.x, fwd.y
+            CT.CollisionViz.BuildFrustum(camPos.x, camPos.y, camPos.z, fwd.x, fwd.y, fwd.z)
+            local visible = CT.CollisionViz.SphereVisible
             local markers = CT.markers
             local count = CT.markerCount
             local selected = CT.selected
@@ -74,7 +75,7 @@ CreateThread(function()
                 if m.id ~= selected then
                     local dx = m.x - cx
                     local dy = m.y - cy
-                    if dx * dx + dy * dy < 160000.0 and dx * hfx + dy * hfy > -60.0 then
+                    if dx * dx + dy * dy < 160000.0 and visible(m.x, m.y, m.z + 10.0, 52.0) then
                         drawn = drawn + 1
                         if drawn > 200 then break end
                         drawOne(m, false, xray)
