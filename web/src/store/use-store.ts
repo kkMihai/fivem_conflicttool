@@ -1,8 +1,8 @@
 import { create } from 'zustand'
-import type { AssetKind, Backup, Category, Conflict, DecisionsMeta, HistoryEntry, ResourceWeight, ScanMeta, TransformState, VersionInfo } from '@/types'
+import type { AssetKind, Backup, Category, CollEditLive, CollEditState, CollVerify, CollisionData, Conflict, DecisionsMeta, FaceDataInfo, FaceSelState, HistoryEntry, ResourceWeight, ScanMeta, TransformState, VersionInfo } from '@/types'
 import { fetchNui, isEnvBrowser } from '@/lib/nui'
 import { extOf } from '@/lib/utils'
-import { mockConflicts, mockState, mockWeights } from '@/lib/mock'
+import { mockCollColors, mockCollFlags, mockCollMats, mockCollision, mockConflicts, mockState, mockWeights } from '@/lib/mock'
 
 export type Tab = 'all' | Category
 
@@ -69,9 +69,37 @@ interface StoreState {
     zeroOccluder: (c: Conflict, target: number) => void
     occlEdit: { id: string; target: number } | null
     occlEditLive: { l: number; w: number; h: number; face?: string | null } | null
-    ctxMenu: { id: string; bx: number | null; x: number; y: number } | null
+    collision: CollisionData | null
+    collResource: string | null
+    collEdit: CollEditState | null
+    collEditLive: CollEditLive | null
+    collMats: string[]
+    collFlags: string[]
+    collColors: [number, number, number][]
+    faceEdit: { bi: number; file: string } | null
+    faceSel: FaceSelState | null
+    faceInfo: FaceDataInfo | null
+    collVerify: CollVerify | null
+    detailTab: 'conflict' | 'collision'
+    setDetailTab: (t: 'conflict' | 'collision') => void
+    openBound: number | null
+    setOpenBound: (bi: number | null) => void
+    verifyCollision: () => void
+    startFaceEdit: (c: Conflict, bi: number) => Promise<void>
+    stopFaceEdit: () => void
+    faceSelectOp: (op: string, value?: number) => void
+    applyFaceMaterial: (type: number, flags?: number) => void
+    faceMove: (op: 'begin' | 'apply' | 'cancel') => Promise<void>
+    requestCollision: (c: Conflict, resource?: string) => void
+    editCollisionBound: (c: Conflict, bi: number) => Promise<void>
+    moveWholeCollision: (c: Conflict) => Promise<void>
+    collEditApply: () => void
+    collEditCancel: () => void
+    setCollisionMaterial: (c: Conflict, bi: number, slot: number, patch: Record<string, number>) => void
+    highlightBound: (bi: number | null) => void
+    ctxMenu: { id: string; bx: number | null; cbx?: number | null; x: number; y: number } | null
     gizmoSpace: 'local' | 'global'
-    openCtxMenu: (d: { id: string; bx: number | null; x: number; y: number }) => void
+    openCtxMenu: (d: { id: string; bx: number | null; cbx?: number | null; x: number; y: number }) => void
     closeCtxMenu: () => void
     editOccluder: (c: Conflict, target: number) => Promise<void>
     occlEditApply: () => void
@@ -222,6 +250,19 @@ export const useStore = create<StoreState>((set, get) => ({
 
     occlEdit: null,
     occlEditLive: null,
+    collision: isEnvBrowser() ? mockCollision : null,
+    collResource: isEnvBrowser() ? mockCollision.resource : null,
+    collEdit: null,
+    collEditLive: null,
+    collMats: isEnvBrowser() ? mockCollMats : [],
+    collFlags: isEnvBrowser() ? mockCollFlags : [],
+    collColors: isEnvBrowser() ? mockCollColors : [],
+    faceEdit: null,
+    faceSel: null,
+    faceInfo: null,
+    collVerify: null,
+    detailTab: 'collision',
+    openBound: null,
     ctxMenu: null,
     gizmoSpace: 'global',
 
@@ -258,6 +299,151 @@ export const useStore = create<StoreState>((set, get) => ({
             return
         }
         fetchNui('occlEditCancel')
+    },
+
+    setDetailTab: t => set({ detailTab: t }),
+
+    setOpenBound: bi => set(s => ({ openBound: s.openBound === bi ? null : bi })),
+
+    verifyCollision: () => {
+        const coll = get().collision
+        if (isEnvBrowser()) {
+            set({
+                collVerify: {
+                    state: 'done',
+                    copies: [
+                        { resource: 'citymaps_tunershop', unique: 199, total: 6995, tested: 58, matched: 56 },
+                        { resource: 'citymaps_gasstation', unique: 1218, total: 8022, tested: 60, matched: 1 }
+                    ].map(c => ({ ...c, pct: Math.round((c.matched / c.tested) * 100) }))
+                }
+            })
+            return
+        }
+        set({ collVerify: { state: 'running' } })
+        fetchNui('verifyCollision', { file: coll?.file })
+    },
+
+    startFaceEdit: async (c, bi) => {
+        const coll = get().collision
+        if (!coll || get().collEdit) return
+        if (isEnvBrowser()) {
+            set({ faceEdit: { bi, file: coll.file }, faceSel: { bi, count: 0, brush: 0.6, slot: null, loading: false } })
+            return
+        }
+        const res = await fetchNui<{ ok: boolean; reason?: string }>('startFaceEdit', {
+            conflictId: c.id,
+            file: coll.file,
+            resource: coll.resource,
+            bi
+        })
+        if (res?.ok) set({ faceEdit: { bi, file: coll.file }, faceSel: null, faceInfo: null, openBound: bi })
+        else if (res?.reason) get().setNotice(res.reason)
+    },
+
+    stopFaceEdit: () => {
+        if (isEnvBrowser()) {
+            set({ faceEdit: null, faceSel: null, faceInfo: null })
+            return
+        }
+        fetchNui('stopFaceEdit')
+    },
+
+    faceSelectOp: (op, value) => {
+        if (isEnvBrowser()) return
+        fetchNui('faceSelect', { op, slot: value, value })
+    },
+
+    applyFaceMaterial: (type, flags) => {
+        if (isEnvBrowser()) return
+        fetchNui('applyFaceMaterial', { type, flags })
+    },
+
+    faceMove: async op => {
+        if (isEnvBrowser()) {
+            set(s => ({ faceSel: s.faceSel ? { ...s.faceSel, moving: op === 'begin' } : s.faceSel }))
+            return
+        }
+        const res = await fetchNui<{ ok: boolean; reason?: string }>('faceMove', { op })
+        if (op === 'begin' && res && res.ok === false && res.reason) get().setNotice(res.reason)
+    },
+
+    requestCollision: (c, resource) => {
+        const keep = resource ?? get().collResource ?? c.resources[c.resources.length - 1]?.name ?? null
+        if (isEnvBrowser()) {
+            set({ collision: { ...mockCollision, resource: keep ?? mockCollision.resource }, collResource: keep })
+            return
+        }
+        set({ collision: null, collResource: keep, collEdit: null, collEditLive: null, collVerify: null })
+        fetchNui('requestCollisionBounds', { file: c.file, resource: keep })
+    },
+
+    editCollisionBound: async (c, bi) => {
+        const coll = get().collision
+        if (!coll || get().collEdit) return
+        if (isEnvBrowser()) {
+            set({ collEdit: { file: coll.file, bi, whole: false }, collEditLive: null })
+            return
+        }
+        const res = await fetchNui<{ ok: boolean; reason?: string }>('editCollision', {
+            conflictId: c.id,
+            file: coll.file,
+            resource: coll.resource,
+            bi,
+            whole: false
+        })
+        if (res?.ok) set({ collEdit: { file: coll.file, bi, whole: false }, collEditLive: null })
+        else if (res?.reason) get().setNotice(res.reason)
+    },
+
+    moveWholeCollision: async c => {
+        const coll = get().collision
+        if (!coll || get().collEdit) return
+        if (isEnvBrowser()) {
+            set({ collEdit: { file: coll.file, bi: null, whole: true }, collEditLive: null })
+            return
+        }
+        const res = await fetchNui<{ ok: boolean; reason?: string }>('editCollision', {
+            conflictId: c.id,
+            file: coll.file,
+            resource: coll.resource,
+            whole: true
+        })
+        if (res?.ok) set({ collEdit: { file: coll.file, bi: null, whole: true }, collEditLive: null })
+        else if (res?.reason) get().setNotice(res.reason)
+    },
+
+    collEditApply: () => {
+        if (isEnvBrowser()) {
+            set({ collEdit: null, collEditLive: null })
+            return
+        }
+        fetchNui('collEditApply')
+    },
+
+    collEditCancel: () => {
+        if (isEnvBrowser()) {
+            set({ collEdit: null, collEditLive: null })
+            return
+        }
+        fetchNui('collEditCancel')
+    },
+
+    setCollisionMaterial: (c, bi, slot, patch) => {
+        const coll = get().collision
+        if (!coll) return
+        fetchNui('setCollisionMaterial', {
+            conflictId: c.id,
+            file: coll.file,
+            resource: coll.resource,
+            bi,
+            slot,
+            ...patch
+        })
+    },
+
+    highlightBound: bi => {
+        if (isEnvBrowser()) return
+        fetchNui('highlightBound', { bi })
     },
 
     occlEditWholeBox: () => {
@@ -402,6 +588,8 @@ export const useStore = create<StoreState>((set, get) => ({
             fetchNui('collisionBox', { on: false })
             fetchNui('occlBoxes', { boxes: null })
             fetchNui('clearCollision')
+            fetchNui('clearCollisionBounds')
+            set({ collision: null, collResource: null, collEdit: null, collEditLive: null })
             return
         }
         const list = get().filtered()
@@ -413,9 +601,11 @@ export const useStore = create<StoreState>((set, get) => ({
         fetchNui('selectConflict', { id, index: idx + 1, label, pos: c.pos, teleport: teleport && !!c.pos })
         fetchNui('clearCollision')
         if (c.cat === 'coll') {
-            fetchNui('requestCollisionGeom', { file: c.file, resource: c.resources[c.resources.length - 1]?.name })
+            set({ collResource: null, detailTab: 'collision', openBound: null })
+            get().requestCollision(c)
         } else {
-            set({ collisionTris: 0 })
+            fetchNui('clearCollisionBounds')
+            set({ collisionTris: 0, collision: null, collResource: null, collEdit: null, collEditLive: null })
         }
         fetchNui('occlBoxes', { boxes: c.boxes ?? null })
         if (c.entity) {

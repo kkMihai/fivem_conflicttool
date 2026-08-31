@@ -26,9 +26,9 @@ export function Legend() {
         </span>
       ))}
       {showColl && (
-        <span className="flex items-center gap-1.5 text-3xs text-cat-coll">
+        <span className="flex items-center gap-1.5 text-3xs text-muted-foreground">
           <span aria-hidden="true" className="h-2 w-2 rounded-sm bg-cat-coll" />
-          Active Collision Mesh
+          Collision Mesh, coloured by surface
         </span>
       )}
       {showOccl && (

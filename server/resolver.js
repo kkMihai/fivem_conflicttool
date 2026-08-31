@@ -142,8 +142,8 @@ KKCT.resolver = (() => {
         const result = KKCT.ymap.patch(buf, [
             { kind: 'entityPos', archetype, from: d.entity.from, to }
         ])
-        writeBack(src, result.buf, backup, parsed =>
-            parsed.entities.some(e => e.a === archetype && Math.abs(e.p[2] - to[2]) < 0.05)
+        writeBack(src, result.buf, backup, raw =>
+            KKCT.ymap.parse(raw).entities.some(e => e.a === archetype && Math.abs(e.p[2] - to[2]) < 0.05)
         )
     }
 
@@ -152,7 +152,7 @@ KKCT.resolver = (() => {
         fs.writeFileSync(tmp, buf)
         try {
             KKCT.fsops.copyInto(tmp, src)
-            if (!verify(KKCT.ymap.parse(fs.readFileSync(src)))) throw new Error('patched file did not verify')
+            if (!verify(fs.readFileSync(src))) throw new Error('patched file did not verify')
         } catch (e) {
             try {
                 KKCT.fsops.copyInto(backup, src)
@@ -172,8 +172,8 @@ KKCT.resolver = (() => {
         const result = KKCT.ymap.patch(fs.readFileSync(src), [
             { kind: 'boxOccluder', index: d.box.index, fields: d.box.fields }
         ])
-        writeBack(src, result.buf, backup, parsed => {
-            const box = (parsed.boxOccluders || []).find(b => b.bi === d.box.index)
+        writeBack(src, result.buf, backup, raw => {
+            const box = (KKCT.ymap.parse(raw).boxOccluders || []).find(b => b.bi === d.box.index)
             if (!box) return false
             const want = d.box.after
             return Math.abs(box.c[0] - want.c[0]) < 0.3 &&
@@ -185,8 +185,108 @@ KKCT.resolver = (() => {
         })
     }
 
+    const MAT_FIELDS = ['type', 'flags', 'procId', 'roomId', 'pedDensity', 'colorIndex']
+
+    function effectiveYbn(edits) {
+        const matrices = new Map()
+        const mats = new Map()
+        const faces = new Map()
+        const shift = [0, 0, 0]
+        const movedBounds = new Set()
+        let shifted = false
+        for (const e of edits) {
+            if (e.kind === 'moveVerts') movedBounds.add(e.bi)
+            if (e.kind === 'boundMatrix') {
+                matrices.set(e.bi, e.m)
+            } else if (e.kind === 'boundShift') {
+                shifted = true
+                for (let a = 0; a < 3; a++) shift[a] += e.d[a]
+            } else if (e.kind === 'boundMaterial' || e.kind === 'addMaterial') {
+                const key = `${e.bi}:${e.slot}`
+                const cur = mats.get(key) || { bi: e.bi, slot: e.slot }
+                for (const k of MAT_FIELDS) {
+                    if (typeof e[k] === 'number') cur[k] = e[k]
+                }
+                mats.set(key, cur)
+            } else if (e.kind === 'faceMaterial') {
+                let per = faces.get(e.bi)
+                if (!per) {
+                    per = new Map()
+                    faces.set(e.bi, per)
+                }
+                for (const poly of e.polys) per.set(poly, e.slot)
+            }
+        }
+        return { matrices, mats, faces, shift, shifted, movedBounds }
+    }
+
+    function ybnInPlace(src, edits, backup) {
+        if (!edits.length) throw new Error('collision decision has no edits')
+        const buf = fs.readFileSync(src)
+        const before = KKCT.ybn.inspect(buf)
+        const want = effectiveYbn(edits)
+        const result = KKCT.ybn.patch(buf, edits)
+        writeBack(src, result.buf, backup, raw => {
+            const after = KKCT.ybn.inspect(raw)
+            const boundAt = bi => after.bounds.find(b => b.bi === bi)
+            for (const [bi, m] of want.matrices) {
+                const bound = boundAt(bi)
+                if (!bound || !bound.m) return false
+                for (const i of [0, 1, 2, 4, 5, 6, 8, 9, 10, 12, 13, 14]) {
+                    if (Math.abs(bound.m[i] - m[i]) > 0.01) return false
+                }
+            }
+            if (want.shifted) {
+                for (let a = 0; a < 3; a++) {
+                    if (Math.abs(after.root.center[a] - before.root.center[a] - want.shift[a]) > 0.05) return false
+                }
+            }
+            for (const e of want.mats.values()) {
+                const bound = boundAt(e.bi)
+                if (!bound) return false
+                const mat = bound.mats.find(m => m.slot === e.slot)
+                if (!mat) return false
+                for (const k of MAT_FIELDS) {
+                    if (typeof e[k] === 'number' && mat[k] !== e[k]) return false
+                }
+            }
+            for (const bi of want.movedBounds) {
+                const bound = boundAt(bi)
+                const was = before.bounds.find(b => b.bi === bi)
+                if (!bound || !was || bound.faces !== was.faces) return false
+            }
+            for (const [bi, per] of want.faces) {
+                const usage = KKCT.ybn.slotUsage(raw, bi)
+                if (!usage) return false
+                for (const [poly, slot] of per) {
+                    if (poly >= usage.polyCount || usage.slotOf[poly] !== slot) return false
+                }
+            }
+            return true
+        })
+    }
+
+    function groupYbn(list) {
+        const groups = new Map()
+        for (const d of list) {
+            if (d.action !== 'ybn' || !d.loser) continue
+            const rel = d.loser.relPath || d.loser.rel
+            if (!rel) continue
+            const key = `${d.loser.resource}/${rel.replace(/\\/g, '/')}`
+            let g = groups.get(key)
+            if (!g) {
+                g = { resource: d.loser.resource, rel, file: d.file || rel, decisions: [] }
+                groups.set(key, g)
+            }
+            g.decisions.push(d)
+        }
+        return [...groups.values()]
+    }
+
     async function apply(progress) {
-        const pending = KKCT.decisions.pendingAssets()
+        const allPending = KKCT.decisions.pendingAssets()
+        const pending = allPending.filter(d => d.action !== 'ybn')
+        const ybnJobs = groupYbn(allPending)
         const fresh = KKCT.decisions.entities().filter(e => (e.state || 'live') === 'live' && !e.reported)
         const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
         let bundleId = stamp
@@ -237,7 +337,7 @@ KKCT.resolver = (() => {
 
         for (const d of pending) {
             step++
-            progress({ step, total: pending.length, label: d.file })
+            progress({ step, total: totalSteps, label: d.file })
             try {
                 const rel = d.loser.relPath || d.loser.rel
                 const b = ensureBackup(d.loser.resource, rel)
@@ -268,9 +368,38 @@ KKCT.resolver = (() => {
         }
 
         const entityJobs = KKCT.decisions.entityFileJobs()
+        const totalSteps = pending.length + ybnJobs.length + entityJobs.length
+
+        for (const job of ybnJobs) {
+            step++
+            progress({ step, total: totalSteps, label: job.file })
+            try {
+                const b = ensureBackup(job.resource, job.rel)
+                const stamped = job.decisions.find(d => d.loser && d.loser.sha1)
+                if (b.first && stamped && b.sha !== stamped.loser.sha1) {
+                    fs.unlinkSync(b.dest)
+                    backedUp.delete(b.key)
+                    throw new Error('file changed since scan')
+                }
+                const edits = job.decisions.flatMap(d => (d.ybn && Array.isArray(d.ybn.edits) ? d.ybn.edits : []))
+                ybnInPlace(b.src, edits, b.dest)
+                for (const d of job.decisions) {
+                    d.state = 'applied'
+                    d.bundleId = bundleId
+                    if (d.conflictId) appliedIds.add(d.conflictId)
+                }
+                if (b.first) {
+                    recordMove(job.resource, job.rel, b.sha, b.dest, 'edit', { ybn: true })
+                }
+            } catch (e) {
+                errors.push({ file: job.file, resource: job.resource, msg: e.message })
+            }
+            await new Promise(r => setImmediate(r))
+        }
+
         for (const job of entityJobs) {
             step++
-            progress({ step, total: pending.length + entityJobs.length, label: job.archetype || 'prop edit' })
+            progress({ step, total: totalSteps, label: job.archetype || 'prop edit' })
             let touched = false
             const sharedTo = job.action === 'remove' ? sharedBuryTarget(job) : null
             for (const t of job.targets) {
@@ -301,7 +430,7 @@ KKCT.resolver = (() => {
                         }
                         throw patchErr
                     }
-                    writeBack(b.src, result.buf, b.dest, verify)
+                    writeBack(b.src, result.buf, b.dest, raw => verify(KKCT.ymap.parse(raw)))
                     touched = true
                     if (b.first) {
                         recordMove(t.resource, t.rel, b.sha, b.dest, 'edit', {
@@ -323,8 +452,9 @@ KKCT.resolver = (() => {
         const summary = {
             removed: fresh.filter(e => e.action === 'remove').length,
             moved: fresh.filter(e => e.action === 'move').length,
-            buried: moves.filter(m => m.kind === 'edit' && !m.clip && !m.move).length,
+            buried: moves.filter(m => m.kind === 'edit' && !m.clip && !m.move && !m.ybn).length,
             clipped: moves.filter(m => m.kind === 'edit' && m.clip).length,
+            collision: moves.filter(m => m.ybn).length,
             filedMoves: moves.filter(m => m.move).length,
             assets: moves.filter(m => m.kind !== 'edit').length,
             files: moves.length,

@@ -90,6 +90,8 @@ function CT.Close()
     DisplayRadar(radarWasVisible)
     CT.picking = false
     CT.OcclEdit.Stop(true)
+    CT.CollEdit.Stop(true)
+    CT.FaceSel.Stop()
     CT.Gizmo.Stop(false)
     CT.Preview.Reset()
     CT.CollisionViz.Clear()
@@ -114,6 +116,12 @@ RegisterCommand('+kkctPrimary', function()
         CT.Gizmo.DragStart()
     elseif CT.OcclEdit.active then
         CT.OcclEdit.DragStart()
+    elseif CT.CollEdit.active then
+        CT.CollEdit.DragStart()
+    elseif CT.FaceSel.moving then
+        CT.FaceSel.GizmoDragStart()
+    elseif CT.FaceSel.active then
+        CT.FaceSel.Press()
     else
         CT.Picking.Click()
     end
@@ -122,6 +130,9 @@ end, false)
 RegisterCommand('-kkctPrimary', function()
     CT.Gizmo.DragStop()
     CT.OcclEdit.DragStop()
+    CT.CollEdit.DragStop()
+    CT.FaceSel.GizmoDragStop()
+    CT.FaceSel.Release()
 end, false)
 
 RegisterKeyMapping('+kkctPrimary', 'Conflict tool: select object / drag gizmo', 'MOUSE_BUTTON', 'MOUSE_LEFT')
@@ -192,8 +203,12 @@ bindTap('kkctGround', 'Conflict tool: snap object to ground', 'F', function()
 end)
 
 bindTap('kkctCommit', 'Conflict tool: finish transform', 'RETURN', function()
-    if CT.OcclEdit.active then
+    if CT.FaceSel.moving then
+        CT.FaceSel.ApplyMove()
+    elseif CT.OcclEdit.active then
         CT.OcclEdit.Apply()
+    elseif CT.CollEdit.active then
+        CT.CollEdit.Apply()
     elseif CT.mode == 'transform' then
         CT.NuiSend('keybind', { key = 'commit' })
     end
@@ -230,6 +245,14 @@ CreateThread(function()
             EnableControlAction(0, 245, true)
             if not CT.typing and IsDisabledControlPressed(0, 36) and IsDisabledControlJustPressed(0, 20) then
                 CT.NuiSend('keybind', { key = 'undo' })
+            end
+            if CT.FaceSel.active and not CT.overUi and not CT.typing then
+                CT.FaceSel.Tick()
+                if IsDisabledControlJustPressed(0, 241) then
+                    CT.FaceSel.SetBrush(0.2)
+                elseif IsDisabledControlJustPressed(0, 242) then
+                    CT.FaceSel.SetBrush(-0.2)
+                end
             end
         else
             Wait(300)

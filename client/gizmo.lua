@@ -52,7 +52,7 @@ end
 
 RegisterCommand('+kkctGizmoTranslate', function()
     if not CT.open or CT.typing then return end
-    if not GZ.active and not CT.OcclEdit.active then
+    if not GZ.active and not CT.OcclEdit.active and not CT.CollEdit.active and not CT.FaceSel.moving then
         SendNUIMessage({ action = 'keybind', data = { key = 'mode', value = 'translate' } })
         return
     end
@@ -68,7 +68,7 @@ RegisterKeyMapping('+kkctGizmoTranslate', 'Conflict tool: gizmo move mode', 'key
 
 RegisterCommand('+kkctGizmoRotate', function()
     if not CT.open or CT.typing then return end
-    if not GZ.active and not CT.OcclEdit.active then
+    if not GZ.active and not CT.OcclEdit.active and not CT.CollEdit.active and not CT.FaceSel.moving then
         SendNUIMessage({ action = 'keybind', data = { key = 'mode', value = 'rotate' } })
         return
     end
@@ -97,7 +97,7 @@ RegisterKeyMapping('+kkctGizmoScale', 'Conflict tool: gizmo resize mode', 'keybo
 
 RegisterCommand('+kkctGizmoSpace', function()
     if not CT.open or CT.typing then return end
-    if not GZ.active and not CT.OcclEdit.active then return end
+    if not GZ.active and not CT.OcclEdit.active and not CT.CollEdit.active and not CT.FaceSel.moving then return end
     GZ.space = GZ.space == 'local' and 'global' or 'local'
     ExecuteCommand('+gizmoLocal')
     GZ.EmitSpace()

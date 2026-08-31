@@ -1,4 +1,58 @@
-import type { Conflict, ResourceWeight, ScanMeta, ToolState, AssetKind } from '@/types'
+import type { Conflict, ResourceWeight, ScanMeta, ToolState, AssetKind, CollisionData } from '@/types'
+
+const mockMat = (slot: number, type: number, name: string, flags = 0) => ({
+    slot, type, name, flags, procId: 0, roomId: 0, pedDensity: 0, colorIndex: 0, unk4: 0
+})
+
+export const mockCollMats = [
+    'DEFAULT', 'CONCRETE', 'CONCRETE_POTHOLE', 'CONCRETE_DUSTY', 'TARMAC', 'TARMAC_PAINTED',
+    'TARMAC_POTHOLE', 'RUMBLE_STRIP', 'BREEZE_BLOCK', 'ROCK', 'ROCK_MOSSY', 'STONE',
+    'COBBLESTONE', 'BRICK', 'MARBLE', 'PAVING_SLAB', 'SANDSTONE_SOLID', 'SANDSTONE_BRITTLE',
+    'SAND_LOOSE', 'SAND_COMPACT', 'GRAVEL_SMALL', 'GRAVEL_LARGE', 'DIRT_TRACK', 'MUD_HARD',
+    'GRASS_LONG', 'GRASS', 'GRASS_SHORT', 'HAY', 'BUSHES', 'TREE_BARK', 'METAL_SOLID_SMALL'
+]
+
+export const mockCollColors: [number, number, number][] = [
+    [255, 0, 255], [145, 145, 145], [145, 145, 145], [145, 140, 130], [90, 90, 90], [90, 90, 90],
+    [70, 70, 70], [90, 90, 90], [145, 145, 145], [185, 185, 185], [185, 185, 185], [185, 185, 185],
+    [185, 185, 185], [195, 95, 30], [195, 155, 145], [200, 165, 130], [215, 195, 150], [205, 190, 145],
+    [235, 220, 170], [230, 215, 165], [190, 185, 165], [190, 185, 165], [175, 160, 140], [110, 100, 85],
+    [110, 100, 85], [125, 140, 80], [125, 140, 80], [150, 150, 90], [85, 160, 30], [125, 90, 55],
+    [155, 155, 155]
+]
+
+export const mockCollFlags = [
+    'stairs', 'not_climbable', 'see_through', 'shoot_through',
+    'not_cover', 'walkable_path', 'no_cam_collision', 'shoot_through_fx',
+    'no_decal', 'no_navmesh', 'no_ragdoll', 'vehicle_wheel',
+    'no_ptfx', 'too_steep_for_player', 'no_network_spawn', 'no_cam_collision_allow_clipping'
+]
+
+export const mockCollision: CollisionData = {
+    file: 'sc1_13_0.ybn',
+    resource: 'citymaps_tunershop',
+    rel: 'stream/sc1_13_0.ybn',
+    inspect: {
+        composite: true,
+        root: { type: 10, bmin: [1200.4, -1580.2, 28.1], bmax: [1288.9, -1495.7, 61.4], center: [1244.6, -1538, 44.7] },
+        bounds: [
+            {
+                bi: 0, type: 8, tris: 3780, faces: 3780,
+                bmin: [-44.2, -42.2, -16.6], bmax: [44.2, 42.2, 16.6],
+                m: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1244.6, -1538, 44.7, 1],
+                matSource: 'geom',
+                mats: [mockMat(0, 4, 'TARMAC'), mockMat(1, 21, 'GRAVEL_LARGE', 0x0020), mockMat(2, 9, 'ROCK')]
+            },
+            {
+                bi: 1, type: 8, tris: 512, faces: 512,
+                bmin: [-8.5, -6.2, -3.1], bmax: [8.5, 6.2, 3.1],
+                m: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1262.1, -1512.4, 33.9, 1],
+                matSource: 'geom',
+                mats: [mockMat(0, 1, 'CONCRETE'), mockMat(1, 25, 'GRASS', 0x0200)]
+            }
+        ]
+    }
+}
 
 export const mockWeights: ResourceWeight[] = [
     { name: 'citymaps_gasstation', bytes: 512 * 1024 * 1024, files: 1240, over: [{ rel: 'stream/gas_main.ydr', size: 21 * 1024 * 1024 }, { rel: 'stream/gas_props.ytd', size: 18 * 1024 * 1024 }] },
@@ -28,7 +82,7 @@ export const mockConflicts: Conflict[] = [
         autoRes: null,
         resources: [
             { name: 'citymaps_gasstation', rel: 'stream/sc1_13_0.ybn', size: 431200, sha1: 'ab12cd34', status: 'overridden' },
-            { name: 'citymaps_tunershop', rel: 'stream/sc1_13_0.ybn', size: 429988, sha1: 'ff00aa11', status: 'loads last · active in game' }
+            { name: 'citymaps_tunershop', rel: 'stream/sc1_13_0.ybn', size: 429988, sha1: 'ff00aa11', status: 'loads last · likely active' }
         ],
         entity: null,
         target: null,
@@ -55,7 +109,7 @@ export const mockConflicts: Conflict[] = [
         autoRes: 'assets',
         resources: [
             { name: 'citymaps_townhall', rel: 'stream/bh1_occl_05.ymap', size: 8121, sha1: '11f2e3d4', status: 'overridden' },
-            { name: 'freemode_hills', rel: 'stream/bh1_occl_05.ymap', size: 8121, sha1: '11f2e3d4', status: 'loads last · active in game' }
+            { name: 'freemode_hills', rel: 'stream/bh1_occl_05.ymap', size: 8121, sha1: '11f2e3d4', status: 'loads last · likely active' }
         ],
         entity: null,
         target: null,
@@ -155,7 +209,7 @@ export const mockConflicts: Conflict[] = [
         autoRes: i % 2 === 0 ? 'assets' : null,
         resources: [
             { name: 'phone_shop_mlo', rel: 'stream/ss1_12_night.ydr', size: 220100, sha1: '99887766', status: 'overridden' },
-            { name: 'phone_scripts', rel: 'stream/ss1_12_night.ydr', size: 220300, sha1: '55443322', status: 'loads last · active in game' }
+            { name: 'phone_scripts', rel: 'stream/ss1_12_night.ydr', size: 220300, sha1: '55443322', status: 'loads last · likely active' }
         ],
         entity: null,
         target: null,

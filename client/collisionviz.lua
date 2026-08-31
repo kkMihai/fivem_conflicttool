@@ -1,9 +1,17 @@
 CT.CollisionViz = {
     boxes = {},
     sets = {},
+    setMats = {},
     occl = nil,
     chunks = nil,
-    dirty = false
+    dirty = false,
+    bounds = nil,
+    boundKey = nil,
+    editBi = nil,
+    boundSel = nil,
+    boundMats = nil,
+    editM = nil,
+    drawOffset = nil
 }
 
 local CV = CT.CollisionViz
@@ -26,8 +34,45 @@ local function pull(x, y, z)
     return xrX + ox * s, xrY + oy * s, xrZ + oz * s
 end
 
+CV.Pull = pull
+
+local BUCKETS = 56
+local BUCKET_STEP = 300.0 / BUCKETS
+local bTab, bOff, bN = {}, {}, {}
+for i = 1, BUCKETS do
+    bTab[i] = {}
+    bOff[i] = {}
+    bN[i] = 0
+end
+
+local function bucketReset()
+    for i = 1, BUCKETS do
+        bN[i] = 0
+    end
+end
+
+local function bucketPush(dist, tbl, off)
+    local b = 1 + math.floor(dist / BUCKET_STEP)
+    if b < 1 then b = 1 elseif b > BUCKETS then b = BUCKETS end
+    local n = bN[b] + 1
+    bN[b] = n
+    bTab[b][n] = tbl
+    bOff[b][n] = off
+end
+
+CV.Buckets = { tab = bTab, off = bOff, n = bN, count = BUCKETS, reset = bucketReset, push = bucketPush, step = BUCKET_STEP }
+
 function CV.Touch()
     CV.dirty = true
+end
+
+function CV.SurfaceColor(ty)
+    local colors = CT.collMatColors
+    if ty and ty >= 0 and colors then
+        local c = colors[ty + 1]
+        if c then return c[1], c[2], c[3] end
+    end
+    return 255, 40, 40
 end
 
 local function rotatePoint(px, py, pz, q)
@@ -58,9 +103,151 @@ end
 function CV.Clear()
     CV.boxes = {}
     CV.sets = {}
+    CV.setMats = {}
     CV.occl = nil
     CV.chunks = nil
     CV.dirty = false
+    CV.bounds = nil
+    CV.boundKey = nil
+    CV.editBi = nil
+    CV.editM = nil
+    CV.drawOffset = nil
+    CV.boundMats = nil
+end
+
+local function xf(m, x, y, z)
+    if not m then return x, y, z end
+    return m[1] * x + m[5] * y + m[9] * z + m[13],
+        m[2] * x + m[6] * y + m[10] * z + m[14],
+        m[3] * x + m[7] * y + m[11] * z + m[15]
+end
+
+CV.Transform = xf
+
+function CV.RebuildStatic()
+    if not CV.bounds then return end
+    local out = {}
+    local types = {}
+    local n = 0
+    local tn = 0
+    for _, b in ipairs(CV.bounds) do
+        if b.bi ~= CV.editBi and b.tris then
+            local t = b.tris
+            local m = b.m
+            local slots = b.faceSlots
+            local slotType = CV.boundMats and CV.boundMats[b.bi] or nil
+            local k = 0
+            for i = 1, #t - 8, 9 do
+                k = k + 1
+                local x1, y1, z1 = xf(m, t[i], t[i + 1], t[i + 2])
+                local x2, y2, z2 = xf(m, t[i + 3], t[i + 4], t[i + 5])
+                local x3, y3, z3 = xf(m, t[i + 6], t[i + 7], t[i + 8])
+                out[n + 1], out[n + 2], out[n + 3] = x1, y1, z1
+                out[n + 4], out[n + 5], out[n + 6] = x2, y2, z2
+                out[n + 7], out[n + 8], out[n + 9] = x3, y3, z3
+                n = n + 9
+                tn = tn + 1
+                local slot = slots and slots[k]
+                types[tn] = (slot and slotType and slotType[slot]) or -1
+            end
+        end
+    end
+    CV.sets['coll'] = n > 0 and out or nil
+    CV.setMats['coll'] = n > 0 and types or nil
+    CV.Touch()
+end
+
+function CV.SetBounds(payload)
+    if not (payload and payload.bounds) then
+        CV.bounds = nil
+        CV.boundKey = nil
+        CV.editBi = nil
+        CV.editM = nil
+        CV.sets['coll'] = nil
+        CV.setMats['coll'] = nil
+        CV.boundMats = nil
+        CV.Touch()
+        return
+    end
+    CV.bounds = payload.bounds
+    CV.boundKey = payload.key
+    CV.editBi = nil
+    CV.editM = nil
+    CV.drawOffset = nil
+    CV.RebuildStatic()
+end
+
+local verifySession = 0
+
+function CV.ProbeSets(payload)
+    local sets = payload and payload.sets
+    if not (sets and #sets > 0) then
+        CT.NuiSend('collVerify', { state = 'none' })
+        return
+    end
+    verifySession = verifySession + 1
+    local mySession = verifySession
+    CT.NuiSend('collVerify', { state = 'running' })
+    CreateThread(function()
+        local cam = CT.Freecam.active and CT.Freecam.pos or GetGameplayCamCoord()
+        local px, py, pz = cam.x, cam.y, cam.z
+        local ped = PlayerPedId()
+        local out = {}
+        local anyTested = false
+        for si = 1, #sets do
+            if verifySession ~= mySession then return end
+            local set = sets[si]
+            local tested, matched = 0, 0
+            for k = 1, #(set.points or {}) do
+                if verifySession ~= mySession then return end
+                local pt = set.points[k]
+                local c, n = pt.c, pt.n
+                local dx, dy, dz = c[1] - px, c[2] - py, c[3] - pz
+                if dx * dx + dy * dy + dz * dz < 3600.0 then
+                    local ok = false
+                    for _, sign in ipairs({ 1.0, -1.0 }) do
+                        if ok then break end
+                        local h = StartExpensiveSynchronousShapeTestLosProbe(
+                            c[1] + n[1] * 0.4 * sign, c[2] + n[2] * 0.4 * sign, c[3] + n[3] * 0.4 * sign,
+                            c[1] - n[1] * 0.4 * sign, c[2] - n[2] * 0.4 * sign, c[3] - n[3] * 0.4 * sign,
+                            1, ped, 4)
+                        local _, res, coords = GetShapeTestResult(h)
+                        if res == 1 then
+                            local ex, ey, ez = coords.x - c[1], coords.y - c[2], coords.z - c[3]
+                            if ex * ex + ey * ey + ez * ez < 0.16 then
+                                ok = true
+                            end
+                        end
+                    end
+                    tested = tested + 1
+                    if ok then matched = matched + 1 end
+                    if tested % 6 == 0 then Wait(0) end
+                end
+            end
+            if tested > 0 then anyTested = true end
+            out[#out + 1] = {
+                resource = set.resource,
+                unique = set.unique,
+                total = set.total,
+                tested = tested,
+                matched = matched,
+                pct = tested > 0 and math.floor(matched / tested * 100 + 0.5) or nil
+            }
+        end
+        if not anyTested then
+            CT.NuiSend('collVerify', { state = 'far', copies = out })
+            return
+        end
+        CT.NuiSend('collVerify', { state = 'done', file = payload.file, copies = out })
+    end)
+end
+
+function CV.BoundAt(bi)
+    if not CV.bounds then return nil end
+    for _, b in ipairs(CV.bounds) do
+        if b.bi == bi then return b end
+    end
+    return nil
 end
 
 local function rebuildChunks()
@@ -68,7 +255,8 @@ local function rebuildChunks()
     local chunks = {}
     local map = {}
     local floor = math.floor
-    for _, t in pairs(CV.sets) do
+    for tag, t in pairs(CV.sets) do
+        local types = CV.setMats[tag]
         local n = #t
         for i = 1, n - 8, 9 do
             local x1, y1, z1 = t[i], t[i + 1], t[i + 2]
@@ -89,6 +277,7 @@ local function rebuildChunks()
             a[b + 4], a[b + 5], a[b + 6] = x2, y2, z2
             a[b + 7], a[b + 8], a[b + 9] = x3, y3, z3
             a[b + 10], a[b + 11], a[b + 12] = uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx
+            a[b + 13] = types and types[(i + 8) // 9] or -1
             c.x = c.x + x1
             c.y = c.y + y1
             c.n = c.n + 1
@@ -176,6 +365,24 @@ end
 
 function CV.HasContent()
     return next(CV.boxes) ~= nil or next(CV.sets) ~= nil or (CV.occl ~= nil and #CV.occl > 0)
+        or (CV.bounds ~= nil and #CV.bounds > 0)
+end
+
+local function drawBoundBox(b, m, ox, oy, oz, r, g, bl, a)
+    local mn, mx = b.bmin, b.bmax
+    if not (mn and mx) then return end
+    local c = {}
+    for i = 0, 7 do
+        local x = (i % 2 == 1) and mx[1] or mn[1]
+        local y = (math.floor(i / 2) % 2 == 1) and mx[2] or mn[2]
+        local z = (math.floor(i / 4) % 2 == 1) and mx[3] or mn[3]
+        local wx, wy, wz = xf(m, x, y, z)
+        c[i + 1] = { pull(wx + ox, wy + oy, wz + oz) }
+    end
+    local edges = { { 1, 2 }, { 2, 4 }, { 4, 3 }, { 3, 1 }, { 5, 6 }, { 6, 8 }, { 8, 7 }, { 7, 5 }, { 1, 5 }, { 2, 6 }, { 3, 7 }, { 4, 8 } }
+    for _, e in ipairs(edges) do
+        DrawLine(c[e[1]][1], c[e[1]][2], c[e[1]][3], c[e[2]][1], c[e[2]][2], c[e[2]][3], r, g, bl, a)
+    end
 end
 
 function CV.DrawFrame(px, py, pz, fx, fy, fz)
@@ -193,18 +400,24 @@ function CV.DrawFrame(px, py, pz, fx, fy, fz)
     if hlen > 0.35 then
         hx, hy = fx / hlen, fy / hlen
     end
+    bucketReset()
     local boxes = CV.boxes
     local chunks = CV.chunks
     local occl = CV.occl
+    local ox, oy, oz = 0.0, 0.0, 0.0
+    local off = CV.drawOffset
+    if off then
+        ox, oy, oz = off[1], off[2], off[3]
+    end
     for _, b in ipairs(boxes) do
         drawBox(b, 255, 60, 60, 220)
     end
+    local wireD = xrOn and 3600.0 or 22500.0
     if chunks and #chunks > 0 then
         local budget = 6000
-        local wireD = xrOn and 3600.0 or 22500.0
         for ci = 1, #chunks do
             local c = chunks[ci]
-            local cdx, cdy = c.x - px, c.y - py
+            local cdx, cdy = c.x + ox - px, c.y + oy - py
             local cd2 = cdx * cdx + cdy * cdy
             if cd2 < 160000.0 then
                 local visible = true
@@ -215,39 +428,16 @@ function CV.DrawFrame(px, py, pz, fx, fy, fz)
                 end
                 if visible then
                     local t = c.t
-                    for i = 1, #t, 12 do
+                    for i = 1, #t, 13 do
                         if budget <= 0 then break end
-                        local x1, y1, z1 = t[i], t[i + 1], t[i + 2]
+                        local x1, y1, z1 = t[i] + ox, t[i + 1] + oy, t[i + 2] + oz
                         local dx, dy = x1 - px, y1 - py
                         local d2 = dx * dx + dy * dy
-                        if d2 < 90000.0 and (d2 < 22500.0 or (i % 24) < 12) then
+                        if d2 < 90000.0 and (d2 < 22500.0 or (i % 26) < 13) then
                             local dz = z1 - pz
                             if dx * fx + dy * fy + dz * fz > -4.0 then
                                 budget = budget - 1
-                                local x2, y2, z2 = t[i + 3], t[i + 4], t[i + 5]
-                                local x3, y3, z3 = t[i + 6], t[i + 7], t[i + 8]
-                                local flip = t[i + 9] * dx + t[i + 10] * dy + t[i + 11] * dz >= 0.0
-                                if xrOn then
-                                    local o2x, o2y, o2z = x2 - px, y2 - py, z2 - pz
-                                    local o3x, o3y, o3z = x3 - px, y3 - py, z3 - pz
-                                    if dx * fx + dy * fy + dz * fz > 0.3
-                                        and o2x * fx + o2y * fy + o2z * fz > 0.3
-                                        and o3x * fx + o3y * fy + o3z * fz > 0.3 then
-                                        x1, y1, z1 = pull(x1, y1, z1)
-                                        x2, y2, z2 = pull(x2, y2, z2)
-                                        x3, y3, z3 = pull(x3, y3, z3)
-                                    end
-                                end
-                                if flip then
-                                    DrawPoly(x3, y3, z3, x2, y2, z2, x1, y1, z1, 255, 40, 40, 90)
-                                else
-                                    DrawPoly(x1, y1, z1, x2, y2, z2, x3, y3, z3, 255, 40, 40, 90)
-                                end
-                                if d2 < wireD then
-                                    DrawLine(x1, y1, z1, x2, y2, z2, 255, 90, 90, 140)
-                                    DrawLine(x2, y2, z2, x3, y3, z3, 255, 90, 90, 140)
-                                    DrawLine(x3, y3, z3, x1, y1, z1, 255, 90, 90, 140)
-                                end
+                                bucketPush(sqrt(d2 + dz * dz), t, i)
                             end
                         end
                     end
@@ -256,6 +446,104 @@ function CV.DrawFrame(px, py, pz, fx, fy, fz)
             end
         end
     end
+    for b = BUCKETS, 1, -1 do
+        local n = bN[b]
+        if n > 0 then
+            local tabs = bTab[b]
+            local offs = bOff[b]
+            for k = 1, n do
+                local t = tabs[k]
+                local i = offs[k]
+                local x1, y1, z1 = t[i] + ox, t[i + 1] + oy, t[i + 2] + oz
+                local x2, y2, z2 = t[i + 3] + ox, t[i + 4] + oy, t[i + 5] + oz
+                local x3, y3, z3 = t[i + 6] + ox, t[i + 7] + oy, t[i + 8] + oz
+                local dx, dy, dz = x1 - px, y1 - py, z1 - pz
+                local d2 = dx * dx + dy * dy
+                local flip = t[i + 9] * dx + t[i + 10] * dy + t[i + 11] * dz >= 0.0
+                if xrOn then
+                    local o2x, o2y, o2z = x2 - px, y2 - py, z2 - pz
+                    local o3x, o3y, o3z = x3 - px, y3 - py, z3 - pz
+                    if dx * fx + dy * fy + dz * fz > 0.3
+                        and o2x * fx + o2y * fy + o2z * fz > 0.3
+                        and o3x * fx + o3y * fy + o3z * fz > 0.3 then
+                        x1, y1, z1 = pull(x1, y1, z1)
+                        x2, y2, z2 = pull(x2, y2, z2)
+                        x3, y3, z3 = pull(x3, y3, z3)
+                    end
+                end
+                local cr, cg, cb = CV.SurfaceColor(t[i + 12])
+                if flip then
+                    DrawPoly(x3, y3, z3, x2, y2, z2, x1, y1, z1, cr, cg, cb, 255)
+                else
+                    DrawPoly(x1, y1, z1, x2, y2, z2, x3, y3, z3, cr, cg, cb, 255)
+                end
+                if d2 < wireD then
+                    local wr, wg, wb = cr * 0.35 + 15, cg * 0.35 + 15, cb * 0.35 + 15
+                    DrawLine(x1, y1, z1, x2, y2, z2, wr, wg, wb, 255)
+                    DrawLine(x2, y2, z2, x3, y3, z3, wr, wg, wb, 255)
+                    DrawLine(x3, y3, z3, x1, y1, z1, wr, wg, wb, 255)
+                end
+            end
+        end
+    end
+
+    if CT.FaceSel and CT.FaceSel.active then
+        CT.FaceSel.Draw(px, py, pz, fx, fy, fz)
+    end
+    local editing = CV.editBi and CV.editM and CV.BoundAt(CV.editBi) or nil
+    if editing and editing.tris then
+        local m = CV.editM
+        local t = editing.tris
+        local slots = editing.faceSlots
+        local slotType = CV.boundMats and CV.boundMats[CV.editBi] or nil
+        local budget = 4000
+        bucketReset()
+        local k = 0
+        for i = 1, #t - 8, 9 do
+            k = k + 1
+            if budget <= 0 then break end
+            local x1, y1, z1 = xf(m, t[i], t[i + 1], t[i + 2])
+            local dx, dy, dz = x1 - px, y1 - py, z1 - pz
+            local d2 = dx * dx + dy * dy
+            if d2 < 90000.0 and dx * fx + dy * fy + dz * fz > -4.0 then
+                budget = budget - 1
+                bucketPush(sqrt(d2 + dz * dz), t, i)
+            end
+        end
+        for b = BUCKETS, 1, -1 do
+            local n = bN[b]
+            if n > 0 then
+                local offs = bOff[b]
+                for j = 1, n do
+                    local i = offs[j]
+                    local x1, y1, z1 = pull(xf(m, t[i], t[i + 1], t[i + 2]))
+                    local x2, y2, z2 = pull(xf(m, t[i + 3], t[i + 4], t[i + 5]))
+                    local x3, y3, z3 = pull(xf(m, t[i + 6], t[i + 7], t[i + 8]))
+                    local slot = slots and slots[(i + 8) // 9]
+                    local cr, cg, cb = CV.SurfaceColor(slot and slotType and slotType[slot] or -1)
+                    DrawPoly(x1, y1, z1, x2, y2, z2, x3, y3, z3, cr, cg, cb, 255)
+                    DrawPoly(x3, y3, z3, x2, y2, z2, x1, y1, z1, cr, cg, cb, 255)
+                    DrawLine(x1, y1, z1, x2, y2, z2, 255, 230, 130, 255)
+                    DrawLine(x2, y2, z2, x3, y3, z3, 255, 230, 130, 255)
+                    DrawLine(x3, y3, z3, x1, y1, z1, 255, 230, 130, 255)
+                end
+            end
+        end
+    end
+
+    if CV.bounds then
+        for _, b in ipairs(CV.bounds) do
+            local sel = CV.editBi == b.bi
+            if sel then
+                drawBoundBox(b, CV.editM or b.m, 0.0, 0.0, 0.0, 255, 220, 90, 235)
+            elseif CV.boundSel == b.bi then
+                drawBoundBox(b, b.m, ox, oy, oz, 255, 255, 255, 200)
+            else
+                drawBoundBox(b, b.m, ox, oy, oz, 255, 90, 90, 120)
+            end
+        end
+    end
+
     if occl and #occl > 0 then
         local drawn = 0
         for bi, b in ipairs(occl) do

@@ -41,6 +41,10 @@ export function ContextMenu() {
     const clipOccluder = useStore(s => s.clipOccluder)
     const zeroOccluder = useStore(s => s.zeroOccluder)
     const mergeOccluders = useStore(s => s.mergeOccluders)
+    const collision = useStore(s => s.collision)
+    const collEdit = useStore(s => s.collEdit)
+    const editCollisionBound = useStore(s => s.editCollisionBound)
+    const moveWholeCollision = useStore(s => s.moveWholeCollision)
     const decideEntity = useStore(s => s.decideEntity)
     const decideAsset = useStore(s => s.decideAsset)
     const startMove = useStore(s => s.startMove)
@@ -68,6 +72,7 @@ export function ContextMenu() {
     const c = conflicts.find(x => x.id === ctx.id)
     if (!c) return null
 
+    const bound = ctx.cbx !== null && ctx.cbx !== undefined ? collision?.inspect.bounds.find(b => b.bi === ctx.cbx) : null
     const box = ctx.bx !== null && ctx.bx !== undefined ? c.boxes?.[ctx.bx] : null
     const gone = !!box && box.l === 0 && box.w === 0 && box.h === 0
     const boxLocked = !box?.rel || gone || !!occlEdit
@@ -91,15 +96,18 @@ export function ContextMenu() {
                 className="panel animate-rise pointer-events-auto absolute w-56 rounded-lg p-1"
             >
                 <div className="flex items-center gap-1.5 border-b border-border px-2 pb-1.5 pt-1">
-                    {box ? (
+                    {box || bound ? (
                         <span
-                            className={cn('h-2 w-2 shrink-0 rounded-full', OCCL_DOTS[(ctx.bx ?? 0) % OCCL_DOTS.length])}
+                            className={cn('h-2 w-2 shrink-0 rounded-full', OCCL_DOTS[(ctx.bx ?? ctx.cbx ?? 0) % OCCL_DOTS.length])}
                             aria-hidden="true"
                         />
                     ) : (
                         <Cube className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden="true" />
                     )}
-                    <span className="truncate font-mono text-3xs">{box?.resource ?? c.title}</span>
+                    <span className="truncate font-mono text-3xs">
+                        {box?.resource ?? (bound ? `bound ${bound.bi + 1}` : c.title)}
+                    </span>
+                    {bound && <span className="ml-auto shrink-0 text-3xs text-muted-foreground">{bound.tris} tris</span>}
                     {box && !gone && (
                         <span className="ml-auto shrink-0 text-3xs text-muted-foreground">
                             {box.l} x {box.w} x {box.h}
@@ -136,14 +144,30 @@ export function ContextMenu() {
                             />
                         </>
                     )}
-                    {!box && c.entity && (
+                    {bound && (
+                        <>
+                            <Item
+                                icon={<ArrowsOutCardinal />}
+                                label="Move / rotate this bound"
+                                disabled={!!collEdit || !collision?.inspect.composite || !bound.m}
+                                onClick={run(() => editCollisionBound(c, bound.bi))}
+                            />
+                            <Item
+                                icon={<ArrowsOutCardinal />}
+                                label="Move whole ybn"
+                                disabled={!!collEdit}
+                                onClick={run(() => moveWholeCollision(c))}
+                            />
+                        </>
+                    )}
+                    {!box && !bound && c.entity && (
                         <>
                             <Item icon={<Check />} label="Keep" onClick={run(() => decideEntity(c, 'keep'))} />
                             <Item icon={<ArrowsOutCardinal />} label="Move" onClick={run(() => startMove(c))} />
                             <Item icon={<Trash />} label="Remove" danger onClick={run(() => decideEntity(c, 'remove'))} />
                         </>
                     )}
-                    {!box && !c.entity && c.kind === 'dup-file' && (
+                    {!box && !bound && !c.entity && c.kind === 'dup-file' && (
                         <Item
                             icon={<Check />}
                             label="Keep last, disable rest"

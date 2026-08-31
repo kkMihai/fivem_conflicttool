@@ -22,6 +22,8 @@ client_scripts {
     'client/occledit.lua',
     'client/preview.lua',
     'client/collisionviz.lua',
+    'client/colledit.lua',
+    'client/facesel.lua',
     'client/nui.lua',
     'client/main.lua'
 }
@@ -32,7 +34,9 @@ server_scripts {
     'server/lib/meta.js',
     'server/lib/ymap.js',
     'server/lib/ytyp.js',
+    'server/lib/collmats.js',
     'server/lib/ybn.js',
+    'server/lib/collision.js',
     'server/lib/assetkind.js',
     'server/lib/occlusion.js',
     'server/lib/names.js',

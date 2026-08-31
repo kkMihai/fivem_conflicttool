@@ -12,7 +12,7 @@ import { ContextMenu } from '@/components/overlay/context-menu'
 import { Kbd } from '@/components/ui/kbd'
 import { decodeChunks, fetchNui, isEnvBrowser, useNuiEvent } from '@/lib/nui'
 import { useStore } from '@/store/use-store'
-import type { Conflict, ScanPayload, ToolState, VersionInfo } from '@/types'
+import type { CollEditLive, CollVerify, CollisionBound, CollisionData, Conflict, FaceDataInfo, FaceSelState, ScanPayload, ToolState, VersionInfo } from '@/types'
 import { CheckCircle, CursorClick, Warning } from '@phosphor-icons/react'
 
 export default function App() {
@@ -26,6 +26,9 @@ export default function App() {
     const uiHidden = useStore(s => s.uiHidden)
     const hoverId = useStore(s => s.hoverId)
     const occlEdit = useStore(s => s.occlEdit)
+    const collEdit = useStore(s => s.collEdit)
+    const faceEdit = useStore(s => s.faceEdit)
+    const faceSel = useStore(s => s.faceSel)
     const gizmoSpace = useStore(s => s.gizmoSpace)
     const hoverName =
         (hoverModel !== null ? conflicts.find(c => c.entity && c.entity.model === hoverModel)?.entity?.name : null) ??
@@ -184,10 +187,10 @@ export default function App() {
         s.select(best.id, false)
     })
 
-    useNuiEvent<{ id: string; bx?: number; x: number; y: number }>('worldContext', d => {
+    useNuiEvent<{ id: string; bx?: number; cbx?: number; x: number; y: number }>('worldContext', d => {
         const s = useStore.getState()
         if (s.selectedId !== d.id) s.select(d.id, false)
-        s.openCtxMenu({ id: d.id, bx: d.bx ?? null, x: d.x, y: d.y })
+        s.openCtxMenu({ id: d.id, bx: d.bx ?? null, cbx: d.cbx ?? null, x: d.x, y: d.y })
     })
 
     useNuiEvent('closeContext', () => useStore.getState().closeCtxMenu())
@@ -233,6 +236,43 @@ export default function App() {
     })
 
     useNuiEvent('occlEditDone', () => useStore.setState({ occlEdit: null, occlEditLive: null }))
+
+    useNuiEvent<{ names: string[]; colors: [number, number, number][]; flags: string[] }>('collMats', d =>
+        useStore.setState({ collMats: d?.names ?? [], collColors: d?.colors ?? [], collFlags: d?.flags ?? [] })
+    )
+
+    useNuiEvent<FaceSelState>('faceSel', d => {
+        if (useStore.getState().faceEdit) useStore.setState({ faceSel: d })
+    })
+
+    useNuiEvent<FaceDataInfo>('faceData', d => {
+        if (useStore.getState().faceEdit) useStore.setState({ faceInfo: d })
+    })
+
+    useNuiEvent('faceSelDone', () => useStore.setState({ faceEdit: null, faceSel: null, faceInfo: null }))
+
+    useNuiEvent<CollVerify>('collVerify', d => useStore.setState({ collVerify: d ?? null }))
+
+    useNuiEvent<CollisionData>('collisionBounds', d => {
+        if (!d || !d.inspect) return
+        useStore.setState({ collision: d, collResource: d.resource })
+    })
+
+    useNuiEvent<{ conflictId: string | null; file: string; resource: string; bounds: CollisionBound[] }>('collPreview', d => {
+        const s = useStore.getState()
+        if (!d?.bounds || !s.collision || s.collision.file !== d.file) return
+        useStore.setState({ collision: { ...s.collision, inspect: { ...s.collision.inspect, bounds: d.bounds } } })
+        if (d.conflictId) {
+            const target = s.conflicts.find(c => c.id === d.conflictId)
+            if (target) s.pushHistory({ id: target.id, label: target.title, action: 'collision edit' })
+        }
+    })
+
+    useNuiEvent<CollEditLive>('collEditLive', d => {
+        if (useStore.getState().collEdit) useStore.setState({ collEditLive: d })
+    })
+
+    useNuiEvent('collEditDone', () => useStore.setState({ collEdit: null, collEditLive: null }))
 
     useNuiEvent<'local' | 'global'>('gizmoSpace', space => useStore.setState({ gizmoSpace: space }))
 
@@ -301,6 +341,12 @@ export default function App() {
                     useStore.getState().closeCtxMenu()
                 } else if (useStore.getState().occlEdit) {
                     useStore.getState().occlEditCancel()
+                } else if (useStore.getState().collEdit) {
+                    useStore.getState().collEditCancel()
+                } else if (useStore.getState().faceSel?.moving) {
+                    useStore.getState().faceMove('cancel')
+                } else if (useStore.getState().faceEdit) {
+                    useStore.getState().stopFaceEdit()
                 } else if (useStore.getState().transform) {
                     useStore.getState().endMove(false)
                 } else {
@@ -426,6 +472,51 @@ export default function App() {
                                 <Kbd>RMB</Kbd>
                                 <span>tap a face to extrude</span>
                             </span>
+                            <span className="flex items-center gap-1.5">
+                                <Kbd>X</Kbd>
+                                <span>{gizmoSpace} axes</span>
+                            </span>
+                            <span className="flex items-center gap-1.5">
+                                <Kbd>Enter</Kbd>
+                                <span>apply</span>
+                            </span>
+                        </div>
+                    ) : faceEdit ? (
+                        <div className="chip-glass pointer-events-none flex items-center gap-2.5 rounded-lg px-2.5 py-1 text-3xs text-muted-foreground" role="note">
+                            <span className="flex items-center gap-1.5">
+                                <Kbd>LMB</Kbd>
+                                <span>tap a face, hold to paint</span>
+                            </span>
+                            <span className="flex items-center gap-1.5">
+                                <Kbd>Ctrl</Kbd>
+                                <span>erase</span>
+                            </span>
+                            <span className="flex items-center gap-1.5">
+                                <Kbd>Scroll</Kbd>
+                                <span>brush {(faceSel?.brush ?? 0.6).toFixed(1)}m</span>
+                            </span>
+                            <span className="flex items-center gap-1.5">
+                                <Kbd>Esc</Kbd>
+                                <span>done</span>
+                            </span>
+                            <span className="font-semibold text-foreground">{faceSel?.count ?? 0} selected</span>
+                        </div>
+                    ) : collEdit ? (
+                        <div className="chip-glass pointer-events-none flex items-center gap-2.5 rounded-lg px-2.5 py-1 text-3xs text-muted-foreground" role="note">
+                            <span className="flex items-center gap-1.5">
+                                <Kbd>LMB</Kbd>
+                                <span>drag gizmo</span>
+                            </span>
+                            <span className="flex items-center gap-1.5">
+                                <Kbd>2</Kbd>
+                                <span>move</span>
+                            </span>
+                            {!collEdit.whole && (
+                                <span className="flex items-center gap-1.5">
+                                    <Kbd>3</Kbd>
+                                    <span>rotate</span>
+                                </span>
+                            )}
                             <span className="flex items-center gap-1.5">
                                 <Kbd>X</Kbd>
                                 <span>{gizmoSpace} axes</span>

@@ -16,7 +16,6 @@ RegisterNUICallback('close', function(_, cb)
     CT.Close()
 end)
 
-
 RegisterNUICallback('requestScan', function(data, cb)
     cb(true)
     TriggerServerEvent('kk_ct:scan', data and data.force or false)
@@ -212,6 +211,116 @@ RegisterNUICallback('occlEditWholeBox', function(_, cb)
     CT.OcclEdit.ClearFace()
 end)
 
+RegisterNUICallback('requestCollisionBounds', function(data, cb)
+    cb(true)
+    if data and data.file then
+        TriggerServerEvent('kk_ct:collisionBounds', data.file, data.resource)
+    end
+end)
+
+RegisterNUICallback('clearCollisionBounds', function(_, cb)
+    cb(true)
+    if CT.CollEdit.active then
+        CT.CollEdit.Stop(true)
+    end
+    CT.CollisionViz.SetBounds(nil)
+end)
+
+RegisterNUICallback('editCollision', function(data, cb)
+    local ok, reason = CT.CollEdit.Start(data)
+    cb({ ok = ok or false, reason = reason })
+end)
+
+RegisterNUICallback('collEditApply', function(_, cb)
+    cb(true)
+    CT.CollEdit.Apply()
+end)
+
+RegisterNUICallback('collEditCancel', function(_, cb)
+    cb(true)
+    CT.CollEdit.Stop(true)
+end)
+
+RegisterNUICallback('setCollisionMaterial', function(data, cb)
+    cb(true)
+    if data then
+        TriggerServerEvent('kk_ct:setCollisionMaterial', data)
+    end
+end)
+
+RegisterNUICallback('verifyCollision', function(data, cb)
+    cb(true)
+    if data and data.file then
+        TriggerServerEvent('kk_ct:collProbeSets', data.file)
+    end
+end)
+
+RegisterNUICallback('highlightBound', function(data, cb)
+    cb(true)
+    CT.CollisionViz.boundSel = data and data.bi or nil
+end)
+
+RegisterNUICallback('startFaceEdit', function(data, cb)
+    local ok, reason = CT.FaceSel.Start(data)
+    cb({ ok = ok or false, reason = reason })
+end)
+
+RegisterNUICallback('stopFaceEdit', function(_, cb)
+    cb(true)
+    CT.FaceSel.Stop()
+end)
+
+RegisterNUICallback('faceSelect', function(data, cb)
+    cb(true)
+    if not data then return end
+    if data.op == 'clear' then
+        CT.FaceSel.Clear()
+    elseif data.op == 'all' then
+        CT.FaceSel.SelectAll()
+    elseif data.op == 'slot' and type(data.slot) == 'number' then
+        CT.FaceSel.SelectSlot(data.slot)
+    elseif data.op == 'like' then
+        CT.FaceSel.SelectAllLike()
+    elseif data.op == 'brush' and type(data.value) == 'number' then
+        CT.FaceSel.brush = math.max(0.2, math.min(6.0, data.value))
+        CT.FaceSel.Emit()
+    end
+end)
+
+RegisterNUICallback('faceMove', function(data, cb)
+    local op = data and data.op
+    if op == 'begin' then
+        local ok, reason = CT.FaceSel.BeginMove()
+        cb({ ok = ok or false, reason = reason })
+        return
+    end
+    cb(true)
+    if op == 'apply' then
+        CT.FaceSel.ApplyMove()
+    elseif op == 'cancel' then
+        CT.FaceSel.CancelMove()
+    end
+end)
+
+RegisterNUICallback('applyFaceMaterial', function(data, cb)
+    cb(true)
+    if not (data and type(data.type) == 'number') then return end
+    local polys, n = CT.FaceSel.Selection()
+    if not polys or n == 0 then
+        CT.NuiSend('notice', 'No faces are selected.')
+        return
+    end
+    TriggerServerEvent('kk_ct:setFaceMaterial', {
+        conflictId = CT.FaceSel.conflictId,
+        file = CT.FaceSel.file,
+        resource = CT.FaceSel.resource,
+        bi = CT.FaceSel.bi,
+        polys = polys,
+        type = data.type,
+        flags = data.flags
+    })
+end)
+
 RegisterNUICallback('ignoreConflict', function(data, cb)
     cb(true)
     if data and (data.key or data.items) then
@@ -403,6 +512,104 @@ end)
 
 RegisterNetEvent('kk_ct:autoResolved', function(ids)
     nuiSend('autoResolved', ids)
+end)
+
+RegisterNetEvent('kk_ct:faceDataResult', function(payload)
+    if not payload then return end
+    if CT.FaceSel.active and payload.bi == CT.FaceSel.bi then
+        CT.FaceSel.Load(payload)
+    end
+    local counts = {}
+    for _, slot in ipairs(payload.mats or {}) do
+        counts[slot] = (counts[slot] or 0) + 1
+    end
+    local list = {}
+    for slot, n in pairs(counts) do
+        list[#list + 1] = { slot = slot, count = n }
+    end
+    nuiSend('faceData', {
+        bi = payload.bi,
+        total = payload.total,
+        capped = payload.capped,
+        tris = math.floor(#(payload.tris or {}) / 9),
+        counts = list
+    })
+end)
+
+local function slotMap(list)
+    local out = {}
+    for _, b in ipairs(list or {}) do
+        local m = {}
+        for _, mat in ipairs(b.mats or {}) do
+            m[mat.slot] = mat.type
+        end
+        out[b.bi] = m
+    end
+    return out
+end
+
+RegisterNetEvent('kk_ct:collisionBoundsData', function(payload)
+    if not payload then return end
+    local geom = {}
+    for _, g in ipairs(payload.geom or {}) do
+        geom[g.bi] = g
+    end
+    local bounds = {}
+    local list = payload.inspect and payload.inspect.bounds or {}
+    for _, b in ipairs(list) do
+        local g = geom[b.bi]
+        bounds[#bounds + 1] = {
+            bi = b.bi,
+            m = b.m,
+            bmin = b.bmin,
+            bmax = b.bmax,
+            tris = g and g.tris or nil,
+            faceSlots = g and g.mats or nil
+        }
+    end
+    CT.CollisionViz.boundMats = slotMap(list)
+    CT.CollisionViz.SetBounds({ bounds = bounds, key = tostring(payload.file) .. '|' .. tostring(payload.resource) })
+    nuiSend('collisionBounds', payload)
+end)
+
+RegisterNetEvent('kk_ct:collPreview', function(d)
+    if d and d.bounds then
+        CT.CollisionViz.boundMats = slotMap(d.bounds)
+    end
+    if d and d.faces and CT.FaceSel.active and d.faces.bi == CT.FaceSel.bi then
+        if d.faces.geometry then
+            CT.FaceSel.Reload()
+        else
+            CT.FaceSel.Repaint(d.faces.slot, d.faces.polys)
+        end
+    end
+    if d and d.bounds and CT.CollisionViz.bounds then
+        local byBi = {}
+        for _, b in ipairs(d.bounds) do
+            byBi[b.bi] = b
+        end
+        for _, b in ipairs(CT.CollisionViz.bounds) do
+            local n = byBi[b.bi]
+            if n then
+                b.m = n.m
+                b.bmin = n.bmin
+                b.bmax = n.bmax
+            end
+        end
+        CT.CollisionViz.RebuildStatic()
+    end
+    nuiSend('collPreview', d)
+end)
+
+RegisterNetEvent('kk_ct:collProbeData', function(payload)
+    CT.CollisionViz.ProbeSets(payload)
+end)
+
+RegisterNetEvent('kk_ct:collMats', function(d)
+    if d and d.colors then
+        CT.collMatColors = d.colors
+    end
+    nuiSend('collMats', d)
 end)
 
 RegisterNetEvent('kk_ct:collisionGeomData', function(tag, tris)

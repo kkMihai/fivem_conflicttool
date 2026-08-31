@@ -91,7 +91,7 @@ export interface DecisionsMeta {
 export interface Backup {
     id: string
     createdAt: string
-    summary: { removed: number; moved: number; buried?: number; clipped?: number; filedMoves?: number; assets: number; files: number; errors?: number }
+    summary: { removed: number; moved: number; buried?: number; clipped?: number; collision?: number; filedMoves?: number; assets: number; files: number; errors?: number }
     files: number
     resources: string[]
     restored: boolean
@@ -105,6 +105,96 @@ export interface VersionInfo {
     url: string
     checkedAt: number | null
     error: string | null
+}
+
+export interface CollisionMatSlot {
+    slot: number
+    type: number
+    procId: number
+    roomId: number
+    pedDensity: number
+    flags: number
+    colorIndex: number
+    unk4: number
+    name: string
+}
+
+export interface CollisionBound {
+    bi: number
+    type: number
+    tris: number
+    faces: number
+    bmin: [number, number, number]
+    bmax: [number, number, number]
+    m: number[] | null
+    matSource: 'geom' | 'base'
+    mats: CollisionMatSlot[]
+}
+
+export interface CollisionInspect {
+    composite: boolean
+    root: {
+        type: number
+        bmin: [number, number, number]
+        bmax: [number, number, number]
+        center: [number, number, number]
+    }
+    bounds: CollisionBound[]
+}
+
+export interface CollisionData {
+    file: string
+    resource: string
+    rel: string
+    inspect: CollisionInspect
+}
+
+export interface CollEditState {
+    file: string
+    bi: number | null
+    whole: boolean
+}
+
+export interface CollEditLive {
+    bi?: number
+    whole?: boolean
+    pos: [number, number, number]
+    delta?: [number, number, number]
+    yaw: number
+}
+
+export interface CollVerifyCopy {
+    resource: string
+    unique: number
+    total: number
+    tested: number
+    matched: number
+    pct?: number
+}
+
+export interface CollVerify {
+    state: 'running' | 'done' | 'none' | 'far'
+    file?: string
+    copies?: CollVerifyCopy[]
+}
+
+export interface FaceSelState {
+    bi: number
+    count: number
+    brush: number
+    slot: number | null
+    loading: boolean
+    moving?: boolean
+    offset?: [number, number, number]
+    yaw?: number
+}
+
+export interface FaceDataInfo {
+    bi: number
+    total: number
+    tris: number
+    capped: boolean
+    counts: { slot: number; count: number }[]
 }
 
 export interface OccluderBox {

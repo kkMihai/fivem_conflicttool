@@ -40,6 +40,8 @@ local function camRay()
     return origin, dir / len
 end
 
+PK.CamRay = camRay
+
 local function raycast(origin, dir)
     local target = origin + dir * 400.0
     local handle = StartExpensiveSynchronousShapeTestLosProbe(origin.x, origin.y, origin.z, target.x, target.y, target.z, 273, PlayerPedId(), 4)
@@ -159,6 +161,41 @@ local function occlPick(origin, dir, range)
     return best, bestT, bestAxis, bestSign
 end
 
+local function collPick(origin, dir, range)
+    local bounds = CT.CollisionViz.bounds
+    if not (bounds and CT.selected and CT.showVisuals) then return nil end
+    local ox, oy, oz = origin.x, origin.y, origin.z
+    local dx, dy, dz = dir.x, dir.y, dir.z
+    local best, bestT = nil, nil
+    for i = 1, #bounds do
+        local b = bounds[i]
+        local mn, mx = b.bmin, b.bmax
+        if mn and mx then
+            local m = b.m
+            local px, py, pz = ox, oy, oz
+            local ldx, ldy, ldz = dx, dy, dz
+            if m then
+                local rx, ry, rz = ox - m[13], oy - m[14], oz - m[15]
+                px = rx * m[1] + ry * m[2] + rz * m[3]
+                py = rx * m[5] + ry * m[6] + rz * m[7]
+                pz = rx * m[9] + ry * m[10] + rz * m[11]
+                ldx = dx * m[1] + dy * m[2] + dz * m[3]
+                ldy = dx * m[5] + dy * m[6] + dz * m[7]
+                ldz = dx * m[9] + dy * m[10] + dz * m[11]
+            end
+            local cx, cy, cz = (mn[1] + mx[1]) / 2, (mn[2] + mx[2]) / 2, (mn[3] + mx[3]) / 2
+            local hx, hy, hz = (mx[1] - mn[1]) / 2, (mx[2] - mn[2]) / 2, (mx[3] - mn[3]) / 2
+            if hx > 0.01 and hy > 0.01 and hz > 0.01 then
+                local t = rayBox({ px - cx, py - cy, pz - cz }, { ldx, ldy, ldz }, { hx, hy, hz }, range)
+                if t and (bestT == nil or t < bestT) then
+                    best, bestT = b.bi, t
+                end
+            end
+        end
+    end
+    return best, bestT
+end
+
 local function probe()
     local origin, dir = camRay()
     local hit, coords, entity = raycast(origin, dir)
@@ -202,6 +239,8 @@ end
 
 function PK.Context()
     if not CT.open or not CT.picking then return end
+    if CT.CollEdit and CT.CollEdit.active then return end
+    if CT.FaceSel and CT.FaceSel.active then return end
     if CT.OcclEdit.active then
         local origin, dir = camRay()
         local index, _, axis, sign = occlPick(origin, dir, 400.0)
@@ -213,9 +252,12 @@ function PK.Context()
     if CT.mode == 'transform' then return end
     local marker, _, markerT, origin, dir, range = probe()
     local boxIndex, boxT = occlPick(origin, dir, range)
-    local id, bx = nil, nil
+    local boundIndex, boundT = collPick(origin, dir, range)
+    local id, bx, cbx = nil, nil, nil
     if boxIndex and (not marker or not markerT or boxT <= markerT) then
         id, bx = CT.selected, boxIndex - 1
+    elseif boundIndex and (not marker or not markerT or boundT <= markerT) then
+        id, cbx = CT.selected, boundIndex
     elseif marker then
         id, bx = marker.id, marker.bx
     end
@@ -223,8 +265,9 @@ function PK.Context()
         SendNUIMessage({ action = 'closeContext' })
         return
     end
+    CT.CollisionViz.boundSel = cbx
     local cx, cy = cursorNorm()
-    SendNUIMessage({ action = 'worldContext', data = { id = id, bx = bx, x = cx, y = cy } })
+    SendNUIMessage({ action = 'worldContext', data = { id = id, bx = bx, cbx = cbx, x = cx, y = cy } })
 end
 
 CreateThread(function()

@@ -1,4 +1,5 @@
 import { ArrowsOutCardinal, Check, Crosshair, Cube, Eye, EyeSlash, Swap, Trash, Warning, X } from '@phosphor-icons/react'
+import { CollisionBounds } from '@/components/collision/collision-bounds'
 import { cn, OCCL_DOTS } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -24,7 +25,6 @@ export function ConflictDetail() {
     const decideAsset = useStore(s => s.decideAsset)
     const startMove = useStore(s => s.startMove)
     const select = useStore(s => s.select)
-    const collisionTris = useStore(s => s.collisionTris)
     const toggleIgnore = useStore(s => s.toggleIgnore)
     const clipOccluder = useStore(s => s.clipOccluder)
     const mergeOccluders = useStore(s => s.mergeOccluders)
@@ -38,9 +38,13 @@ export function ConflictDetail() {
     const gizmoSpace = useStore(s => s.gizmoSpace)
     const preview = useStore(s => s.preview)
     const setPreview = useStore(s => s.setPreview)
+    const detailTab = useStore(s => s.detailTab)
+    const setDetailTab = useStore(s => s.setDetailTab)
     const c = conflicts.find(x => x.id === selectedId)
     if (!c) return null
     const pvLabels = c.entity ? previewLabels[c.kind] : undefined
+    const tabbed = c.cat === 'coll'
+    const tab = tabbed ? detailTab : 'conflict'
 
     return (
         <div
@@ -83,6 +87,30 @@ export function ConflictDetail() {
                     </Button>
                 </div>
             </div>
+            {tabbed && (
+                <div className="mx-3 mt-2 flex gap-0.5 rounded-lg border border-border bg-background p-0.5" role="group" aria-label="Detail view">
+                    {(['conflict', 'collision'] as const).map(t => (
+                        <button
+                            key={t}
+                            type="button"
+                            onClick={() => setDetailTab(t)}
+                            aria-pressed={tab === t}
+                            className={cn(
+                                'min-h-6 flex-1 rounded-md px-1 py-1.5 text-3xs font-semibold capitalize transition-colors duration-150 cursor-pointer',
+                                tab === t ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+                            )}
+                        >
+                            {t === 'conflict' ? 'Conflict' : 'Collision editor'}
+                        </button>
+                    ))}
+                </div>
+            )}
+
+            {tab === 'collision' ? (
+                <div className="min-h-0 flex-1 overflow-y-auto pb-3">
+                    <CollisionBounds c={c} />
+                </div>
+            ) : (
             <div className="min-h-0 flex-1 overflow-y-auto pb-3">
                 <div className="px-3 pt-2.5">
                     <div className="break-all font-mono text-sm font-bold">{c.title}</div>
@@ -303,13 +331,6 @@ export function ConflictDetail() {
                     </div>
                 )}
 
-                {c.cat === 'coll' && (
-                    <div role="status" className="mx-3 mt-2 flex items-center gap-2 rounded-md border border-cat-coll/40 bg-cat-coll/10 px-2 py-1.5 text-3xs text-cat-coll">
-                        <Eye className="h-3 w-3" aria-hidden="true" />
-                        {collisionTris > 0 ? `${collisionTris} collision tris drawn in world` : 'Loading collision geometry…'}
-                    </div>
-                )}
-
                 {c.near && c.near.length > 0 && (
                     <div className="mx-3 mt-2">
                         <div className="flex items-center gap-1.5 text-2xs font-bold">
@@ -327,6 +348,7 @@ export function ConflictDetail() {
                     </div>
                 )}
             </div>
+            )}
         </div>
     )
 }

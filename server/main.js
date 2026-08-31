@@ -141,6 +141,7 @@ function startScan(src) {
 onNet('kk_ct:getState', () => {
     const src = source
     if (!allowed(src)) return
+    emitNet('kk_ct:collMats', src, { names: KKCT.collmats.NAMES, colors: KKCT.collmats.COLORS, flags: KKCT.collmats.FLAGS })
     pushState(src)
     if (KKCT.scanner.last()) {
         sendChunked(src, stripForClient(KKCT.scanner.last()))
@@ -337,12 +338,33 @@ onNet('kk_ct:mergeOccluders', d => {
     }
 })
 
+function pushCollAfterUndo(src, rec) {
+    try {
+        if (!rec || !rec.loser) return
+        const resource = rec.loser.resource
+        const entry = collEntry(rec.file, resource)
+        if (!entry) return
+        const current = currentYbn(entry)
+        emitNet('kk_ct:collPreview', src, {
+            conflictId: rec.conflictId || null,
+            file: rec.file,
+            resource,
+            bounds: KKCT.ybn.inspect(current).bounds
+        })
+    } catch (e) {
+        console.log(`[fivem_conflicttool] collision undo preview failed: ${e.message}`)
+    }
+}
+
 onNet('kk_ct:undo', () => {
     const src = source
     if (!allowed(src)) return
     const undone = KKCT.decisions.undo()
     if (undone && undone.kind === 'entity') {
         broadcastDecisions()
+    }
+    if (undone && undone.kind === 'asset' && undone.rec && undone.rec.action === 'ybn') {
+        pushCollAfterUndo(src, undone.rec)
     }
     emitNet('kk_ct:decisionsMeta', src, KKCT.decisions.meta())
     pushState(src)
@@ -455,15 +477,196 @@ onNet('kk_ct:restore', id => {
     })
 })
 
-function sendCollisionGeom(src, file, resource, tag, cap) {
+function collEntry(file, resource) {
+    const scan = KKCT.scanner.last()
+    if (!scan || typeof file !== 'string') return null
+    const entries = scan.index.get(file.toLowerCase())
+    if (!entries) return null
+    return (resource ? entries.find(e => e.resource === resource) : null) || entries[entries.length - 1] || null
+}
+
+onNet('kk_ct:collisionBounds', (file, resource) => {
+    const src = source
+    if (!allowed(src)) return
+    const entry = collEntry(file, resource)
+    if (!entry) return
+    try {
+        const buf = currentYbn(entry)
+        TriggerLatentClientEvent('kk_ct:collisionBoundsData', String(src), 4000000, {
+            file,
+            resource: entry.resource,
+            rel: entry.rel,
+            inspect: KKCT.ybn.inspect(buf),
+            geom: KKCT.ybn.geometryByBound(buf, 4000)
+        })
+    } catch (e) {
+        console.log(`[fivem_conflicttool] collision bounds failed for ${file}: ${e.message}`)
+        emitNet('kk_ct:notice', src, 'that collision file could not be read, run a fresh scan')
+    }
+})
+
+function currentYbn(entry) {
+    const buf = fs.readFileSync(entry.abs)
+    const prior = pendingYbnEdits(entry.resource, entry.rel)
+    return prior.length ? KKCT.ybn.patch(buf, prior).buf : buf
+}
+
+function pendingYbnEdits(resource, rel) {
+    const out = []
+    for (const a of KKCT.decisions.pendingAssets()) {
+        if (a.action !== 'ybn' || !a.loser) continue
+        if (a.loser.resource !== resource) continue
+        if ((a.loser.relPath || a.loser.rel) !== rel) continue
+        if (a.ybn && Array.isArray(a.ybn.edits)) out.push(...a.ybn.edits)
+    }
+    return out
+}
+
+onNet('kk_ct:faceData', (file, resource, bi) => {
+    const src = source
+    if (!allowed(src)) return
+    const entry = collEntry(file, resource)
+    if (!entry || typeof bi !== 'number') return
+    try {
+        const data = KKCT.ybn.faceData(currentYbn(entry), bi, 40000)
+        if (!data) {
+            emitNet('kk_ct:notice', src, 'that bound has no face data')
+            return
+        }
+        TriggerLatentClientEvent('kk_ct:faceDataResult', String(src), 4000000, {
+            file,
+            resource: entry.resource,
+            ...data
+        })
+    } catch (e) {
+        console.log(`[fivem_conflicttool] face data failed for ${file}: ${e.message}`)
+        emitNet('kk_ct:notice', src, 'that collision file could not be read, run a fresh scan')
+    }
+})
+
+function collApply(src, d, build, message) {
+    if (!allowed(src)) return
+    if (!d || typeof d !== 'object') return
+    const entry = collEntry(d.file, d.resource)
+    if (!entry) {
+        emitNet('kk_ct:notice', src, 'that collision file is not in the last scan, run a fresh scan')
+        return
+    }
+    try {
+        const base = currentYbn(entry)
+        const ins = KKCT.ybn.inspect(base)
+        const result = build(ins, base)
+        if (!result.ok) {
+            emitNet('kk_ct:notice', src, result.reason)
+            return
+        }
+        const preview = KKCT.ybn.patch(base, result.edits)
+        const bounds = KKCT.ybn.inspect(preview.buf).bounds
+        KKCT.decisions.addAsset({
+            action: 'ybn',
+            conflictId: d.conflictId || null,
+            file: d.file || entry.rel,
+            loser: { resource: entry.resource, relPath: entry.rel, sha1: entry.sha1 },
+            ybn: { key: result.key, edits: result.edits },
+            group: result.group || undefined,
+            by: GetPlayerName(src)
+        })
+        emitNet('kk_ct:collPreview', src, {
+            conflictId: d.conflictId || null,
+            file: d.file,
+            resource: entry.resource,
+            bounds,
+            faces: result.faces || null
+        })
+        emitNet('kk_ct:notice', src, message(result, entry))
+        emitNet('kk_ct:decisionsMeta', src, KKCT.decisions.meta())
+        pushState(src)
+    } catch (e) {
+        console.log(`[fivem_conflicttool] collision edit failed for ${d.file}: ${e.stack || e.message}`)
+        emitNet('kk_ct:notice', src, 'the collision edit failed on the server, check the server console')
+    }
+}
+
+onNet('kk_ct:editCollision', d => {
+    const src = source
+    collApply(src, d, ins => {
+        const r = KKCT.collision.transform(ins, d.bi, d.after)
+        return r.ok ? { ...r, key: `m:${d.bi}` } : r
+    }, (r, entry) => `Queued a move of bound ${d.bi + 1} in ${entry.resource} to ${r.after.pos.join(', ')}.`)
+})
+
+onNet('kk_ct:moveCollision', d => {
+    const src = source
+    collApply(src, d, ins => {
+        const r = KKCT.collision.shiftAll(ins, d.delta)
+        return r.ok ? { ...r, key: ins.composite ? 'shift' : `shift:${Date.now()}` } : r
+    }, (r, entry) => `Queued a move of the whole ${entry.resource} collision by ${r.after.delta.join(', ')}.`)
+})
+
+onNet('kk_ct:setFaceMaterial', d => {
+    const src = source
+    collApply(src, d, (ins, base) => {
+        const usage = KKCT.ybn.slotUsage(base, d.bi)
+        const r = KKCT.collision.assignFaces(ins, usage, d.bi, d.polys, d)
+        if (!r.ok) return r
+        return { ...r, key: `face:${d.bi}:${Date.now()}`, faces: { bi: d.bi, slot: r.after.slot, polys: r.edits.find(e => e.kind === 'faceMaterial')?.polys ?? [] } }
+    }, r => {
+        const how = r.after.mode === 'added'
+            ? 'a new surface slot'
+            : r.after.mode === 'retyped'
+                ? 'by retyping the surface those faces already shared'
+                : 'an existing surface slot'
+        return `Queued ${r.after.name} on ${r.after.faces} ${r.after.faces === 1 ? 'face' : 'faces'}, using ${how}.`
+    })
+})
+
+onNet('kk_ct:collProbeSets', file => {
+    const src = source
+    if (!allowed(src)) return
     const scan = KKCT.scanner.last()
     if (!scan || typeof file !== 'string') return
     const entries = scan.index.get(file.toLowerCase())
-    if (!entries) return
-    const entry = resource ? entries.find(e => e.resource === resource) : entries[entries.length - 1]
+    if (!entries || entries.length < 2) return
+    try {
+        const copies = []
+        for (const e of entries) {
+            if (!e.inStream) continue
+            copies.push({ resource: e.resource, tris: KKCT.ybn.parseGeometry(fs.readFileSync(e.abs), 20000) })
+        }
+        if (copies.length < 2) {
+            emitNet('kk_ct:notice', src, 'only one copy of this file is in a stream folder, so there is nothing to compare')
+            return
+        }
+        const sets = KKCT.collision.probeSets(copies, 60)
+        TriggerLatentClientEvent('kk_ct:collProbeData', String(src), 2000000, { file, sets })
+    } catch (e) {
+        console.log(`[fivem_conflicttool] probe sets failed for ${file}: ${e.message}`)
+        emitNet('kk_ct:notice', src, 'those copies could not be compared, run a fresh scan')
+    }
+})
+
+onNet('kk_ct:moveFaces', d => {
+    const src = source
+    collApply(src, d, (ins, base) => {
+        const can = KKCT.ybn.canMoveVerts(base, d.bi)
+        const r = KKCT.collision.moveFaces(ins, can, d.bi, d.polys, d.m)
+        return r.ok ? { ...r, key: `verts:${d.bi}:${Date.now()}`, faces: { bi: d.bi, geometry: true } } : r
+    }, r => `Queued a move of ${r.after.faces} ${r.after.faces === 1 ? 'face' : 'faces'}.`)
+})
+
+onNet('kk_ct:setCollisionMaterial', d => {
+    const src = source
+    collApply(src, d, ins => {
+        const r = KKCT.collision.material(ins, d.bi, d.slot, d)
+        return r.ok ? { ...r, key: `mat:${d.bi}:${d.slot}` } : r
+    }, (r, entry) => `Queued surface ${r.after.name} on bound ${d.bi + 1} in ${entry.resource}.`)
+})
+
+function sendCollisionGeom(src, file, resource, tag, cap) {
+    const entry = collEntry(file, resource)
     if (!entry) return
     try {
-        const buf = fs.readFileSync(entry.abs)
+        const buf = currentYbn(entry)
         const tris = KKCT.ybn.parseGeometry(buf, cap)
         TriggerLatentClientEvent('kk_ct:collisionGeomData', String(src), 4000000, tag, tris)
     } catch (e) {
