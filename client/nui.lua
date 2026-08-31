@@ -608,6 +608,7 @@ end)
 RegisterNetEvent('kk_ct:collMats', function(d)
     if d and d.colors then
         CT.collMatColors = d.colors
+        CT.CollisionViz.ResetColors()
     end
     nuiSend('collMats', d)
 end)

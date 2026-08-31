@@ -21,6 +21,7 @@ local polys = nil
 local sel = nil
 local grid = nil
 local centroids = nil
+local chunks = nil
 local triCount = 0
 local painting = false
 local dirty = false
@@ -30,13 +31,27 @@ local moveSession = 0
 local pressAt = 0
 local erasing = false
 local lastTick = 0
+local moved = nil
+local movedN = 0
+local moveStamp = 0
+local movedStamp = -1
 
 local CELL = 2.0
 local MAX_BRUSH = 6.0
 local MIN_BRUSH = 0.2
+local MOVE_CAP = 8000
 
 local floor = math.floor
 local sqrt = math.sqrt
+
+local selColor = nil
+
+local function selCol()
+    if not selColor then
+        selColor = CV.PackColor(255, 245, 130)
+    end
+    return selColor
+end
 
 local function cellKey(x, y, z)
     return (floor(x / CELL) % 1024) * 1048576 + (floor(y / CELL) % 1024) * 1024 + (floor(z / CELL) % 1024)
@@ -84,6 +99,7 @@ local function buildGrid()
             end
         end
     end
+    chunks = CV.BuildChunks(world, triCount, nil, true)
 end
 
 local function rayTri(ox, oy, oz, dx, dy, dz, ax, ay, az, bx, by, bz, cx, cy, cz)
@@ -161,19 +177,20 @@ local function setSel(i, on)
 end
 
 local function emit()
+    CV.InvalidateDyn()
     CT.NuiSend('faceSel', {
         bi = FS.bi,
         count = FS.count,
-        brush = math.floor(FS.brush * 100 + 0.5) / 100,
+        brush = floor(FS.brush * 100 + 0.5) / 100,
         slot = FS.lastSlot,
         loading = FS.loading,
         moving = FS.moving,
         offset = moveCur and moveSeed and {
-            math.floor((moveCur[13] - moveSeed[1]) * 100 + 0.5) / 100,
-            math.floor((moveCur[14] - moveSeed[2]) * 100 + 0.5) / 100,
-            math.floor((moveCur[15] - moveSeed[3]) * 100 + 0.5) / 100
+            floor((moveCur[13] - moveSeed[1]) * 100 + 0.5) / 100,
+            floor((moveCur[14] - moveSeed[2]) * 100 + 0.5) / 100,
+            floor((moveCur[15] - moveSeed[3]) * 100 + 0.5) / 100
         } or nil,
-        yaw = moveCur and math.floor(math.deg(math.atan(moveCur[2], moveCur[1])) * 10 + 0.5) / 10 or nil
+        yaw = moveCur and floor(math.deg(math.atan(moveCur[2], moveCur[1])) * 10 + 0.5) / 10 or nil
     })
 end
 
@@ -296,6 +313,37 @@ local function moveDelta()
     return d
 end
 
+local function buildMoved()
+    movedStamp = moveStamp
+    movedN = 0
+    local dm = FS.moveM
+    if not (dm and world and sel) then return end
+    local out = moved or {}
+    local n = 0
+    for i in pairs(sel) do
+        if n >= MOVE_CAP then break end
+        local s = (i - 1) * 9
+        local x1, y1, z1 = CV.Transform(dm, world[s + 1], world[s + 2], world[s + 3])
+        local x2, y2, z2 = CV.Transform(dm, world[s + 4], world[s + 5], world[s + 6])
+        local x3, y3, z3 = CV.Transform(dm, world[s + 7], world[s + 8], world[s + 9])
+        local ux, uy, uz = x2 - x1, y2 - y1, z2 - z1
+        local vx, vy, vz = x3 - x1, y3 - y1, z3 - z1
+        local nx = uy * vz - uz * vy
+        local ny = uz * vx - ux * vz
+        local nz = ux * vy - uy * vx
+        local o = n * 14
+        out[o + 1], out[o + 2], out[o + 3] = x1, y1, z1
+        out[o + 4], out[o + 5], out[o + 6] = x2, y2, z2
+        out[o + 7], out[o + 8], out[o + 9] = x3, y3, z3
+        out[o + 10], out[o + 11], out[o + 12] = nx, ny, nz
+        out[o + 13] = i
+        out[o + 14] = nx * nx + ny * ny + nz * nz
+        n = n + 1
+    end
+    moved = out
+    movedN = n
+end
+
 local function selectionCenter()
     local sx, sy, sz, n = 0.0, 0.0, 0.0, 0
     for i in pairs(sel) do
@@ -330,6 +378,7 @@ function FS.BeginMove()
     moveCur = { 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, c[1], c[2], c[3], 1.0 }
     FS.moving = true
     FS.moveM = moveDelta()
+    moveStamp = moveStamp + 1
     CT.Gizmo.pendingMode = CT.Gizmo.mode == 'scale' and 'translate' or CT.Gizmo.mode
     CT.Gizmo.EmitSpace()
     moveSession = moveSession + 1
@@ -354,7 +403,7 @@ function FS.BeginMove()
                     m[i] = view:GetFloat32((i - 1) * 4)
                 end
                 for _, row in ipairs({ 1, 5, 9 }) do
-                    local len = math.sqrt(m[row] * m[row] + m[row + 1] * m[row + 1] + m[row + 2] * m[row + 2])
+                    local len = sqrt(m[row] * m[row] + m[row + 1] * m[row + 1] + m[row + 2] * m[row + 2])
                     if len > 0.0001 then
                         m[row], m[row + 1], m[row + 2] = m[row] / len, m[row + 1] / len, m[row + 2] / len
                     else
@@ -365,6 +414,8 @@ function FS.BeginMove()
                     moveCur[i] = m[i]
                 end
                 FS.moveM = moveDelta()
+                moveStamp = moveStamp + 1
+                CV.InvalidateDyn()
             end
             local now = GetGameTimer()
             if now - emitAt > 100 then
@@ -398,21 +449,23 @@ function FS.CancelMove()
     FS.moveM = nil
     moveSession = moveSession + 1
     moveSeed, moveCur = nil, nil
+    movedN = 0
+    movedStamp = -1
     emit()
 end
 
 function FS.ApplyMove()
     if not (FS.moving and moveCur and moveSeed) then return end
     local d = moveDelta()
-    local polys = FS.Selection()
+    local picked = FS.Selection()
     FS.CancelMove()
-    if not (d and polys and #polys > 0) then return end
+    if not (d and picked and #picked > 0) then return end
     TriggerServerEvent('kk_ct:moveFaces', {
         conflictId = FS.conflictId,
         file = FS.file,
         resource = FS.resource,
         bi = FS.bi,
-        polys = polys,
+        polys = picked,
         m = d
     })
 end
@@ -426,6 +479,10 @@ function FS.Selection()
         out[n] = polys[i]
     end
     return out, n
+end
+
+function FS.HasWorld()
+    return world ~= nil and chunks ~= nil
 end
 
 function FS.Load(payload)
@@ -463,6 +520,7 @@ function FS.Load(payload)
     end
     FS.loading = false
     buildGrid()
+    movedStamp = -1
     emit()
 end
 
@@ -486,6 +544,7 @@ function FS.Repaint(slot, changed)
             mats[i] = slot
         end
     end
+    CV.InvalidateDyn()
 end
 
 function FS.Start(d)
@@ -505,10 +564,13 @@ function FS.Start(d)
     FS.count = 0
     dirty = false
     sel = {}
-    world, mats, polys, grid, centroids = nil, nil, nil, nil, nil
+    world, mats, polys, grid, centroids, chunks = nil, nil, nil, nil, nil, nil
+    movedN = 0
+    movedStamp = -1
     triCount = 0
     CV.editBi = d.bi
     CV.editM = nil
+    CV.DropEditCache()
     CV.drawOffset = nil
     CV.RebuildStatic()
     TriggerServerEvent('kk_ct:faceData', d.file, d.resource, d.bi)
@@ -529,7 +591,8 @@ function FS.Stop()
     FS.lastSlot = nil
     local repainted = dirty
     local file, resource = FS.file, FS.resource
-    world, mats, polys, sel, grid, centroids = nil, nil, nil, nil, nil, nil
+    world, mats, polys, sel, grid, centroids, chunks = nil, nil, nil, nil, nil, nil, nil
+    moved, movedN, movedStamp = nil, 0, -1
     triCount = 0
     painting = false
     dirty = false
@@ -542,66 +605,59 @@ function FS.Stop()
     CT.NuiSend('faceSelDone')
 end
 
-function FS.Draw(px, py, pz, fx, fy, fz)
-    if not (FS.active and world) then return end
+function FS.Gather(px, py, pz, fx, fy, fz)
+    if not (world and chunks) then return end
     local slotType = CV.boundMats and CV.boundMats[FS.bi] or nil
-    local surfaceColor = CV.SurfaceColor
-    local xray = CT.xray
-    local pullFn = CV.Pull
     local dm = FS.moving and FS.moveM or nil
-    local bk = CV.Buckets
-    local budget = 6000
-    bk.reset()
-    for i = 1, triCount do
-        if budget <= 0 then break end
-        local c = (i - 1) * 3
-        local dx = centroids[c + 1] - px
-        local dy = centroids[c + 2] - py
-        local dz = centroids[c + 3] - pz
-        local d2 = dx * dx + dy * dy
-        if d2 < 40000.0 and dx * fx + dy * fy + dz * fz > -3.0 then
-            budget = budget - 1
-            bk.push(sqrt(d2 + dz * dz), world, i)
+    if dm and movedStamp ~= moveStamp then
+        buildMoved()
+    end
+    local pack = CV.PackSurface
+    local pushTri = CV.PushDynTri
+    local drawD2 = CV.DrawD2
+    local wireD2 = CV.WireD2
+    local drawR = CV.DrawR
+    local scol = selCol()
+    CV.SortByDist(chunks, px, py, pz)
+    for ci = 1, #chunks do
+        local c = chunks[ci]
+        local r = c.r
+        local far = drawR + r
+        if c.d2 < far * far and CV.SphereVisible(c.cx, c.cy, c.cz, r) then
+            local t = c.t
+            for j = 0, c.tn - 1 do
+                local o = j * 14
+                local idx = t[o + 13]
+                local picked = sel[idx]
+                if not (picked and dm) then
+                    local dx = t[o + 1] - px
+                    local dy = t[o + 2] - py
+                    local dz = t[o + 3] - pz
+                    local d2 = dx * dx + dy * dy + dz * dz
+                    if d2 < drawD2 and CV.AreaVisible(t[o + 14], d2)
+                        and dx * fx + dy * fy + dz * fz > -3.0 then
+                        local col, knd
+                        if picked then
+                            col, knd = scol, 3
+                        else
+                            col = pack(slotType and slotType[mats[idx]] or -1)
+                            knd = d2 < wireD2 and 1 or 0
+                        end
+                        if not pushTri(sqrt(d2), t, o, col, knd) then return end
+                    end
+                end
+            end
         end
     end
-    for b = bk.count, 1, -1 do
-        local n = bk.n[b]
-        if n > 0 then
-            local offs = bk.off[b]
-            for k = 1, n do
-                local i = offs[k]
-                local o = (i - 1) * 9
-                local x1, y1, z1 = world[o + 1], world[o + 2], world[o + 3]
-                local x2, y2, z2 = world[o + 4], world[o + 5], world[o + 6]
-                local x3, y3, z3 = world[o + 7], world[o + 8], world[o + 9]
-                local picked = sel[i]
-                if picked and dm then
-                    x1, y1, z1 = CV.Transform(dm, x1, y1, z1)
-                    x2, y2, z2 = CV.Transform(dm, x2, y2, z2)
-                    x3, y3, z3 = CV.Transform(dm, x3, y3, z3)
-                end
-                if xray then
-                    x1, y1, z1 = pullFn(x1, y1, z1)
-                    x2, y2, z2 = pullFn(x2, y2, z2)
-                    x3, y3, z3 = pullFn(x3, y3, z3)
-                end
-                local r, g, bl = surfaceColor(slotType and slotType[mats[i]] or -1)
-                if picked then
-                    r, g, bl = 255, 245, 130
-                end
-                DrawPoly(x1, y1, z1, x2, y2, z2, x3, y3, z3, r, g, bl, 255)
-                DrawPoly(x3, y3, z3, x2, y2, z2, x1, y1, z1, r, g, bl, 255)
-                local c2 = (i - 1) * 3
-                local ddx, ddy = centroids[c2 + 1] - px, centroids[c2 + 2] - py
-                if picked or ddx * ddx + ddy * ddy < 3600.0 then
-                    local lr, lg, lb = r * 0.3 + 12, g * 0.3 + 12, bl * 0.3 + 12
-                    if picked then
-                        lr, lg, lb = 255, 255, 255
-                    end
-                    DrawLine(x1, y1, z1, x2, y2, z2, lr, lg, lb, 255)
-                    DrawLine(x2, y2, z2, x3, y3, z3, lr, lg, lb, 255)
-                    DrawLine(x3, y3, z3, x1, y1, z1, lr, lg, lb, 255)
-                end
+    if dm and movedN > 0 then
+        for j = 0, movedN - 1 do
+            local o = j * 14
+            local dx = moved[o + 1] - px
+            local dy = moved[o + 2] - py
+            local dz = moved[o + 3] - pz
+            local d2 = dx * dx + dy * dy + dz * dz
+            if d2 < drawD2 and dx * fx + dy * fy + dz * fz > -3.0 then
+                if not pushTri(sqrt(d2), moved, o, scol, 3) then return end
             end
         end
     end

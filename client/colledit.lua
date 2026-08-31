@@ -147,9 +147,11 @@ local function pushViz()
     if not cur then return end
     if CE.whole then
         CV.drawOffset = { cur[13] - orig[13], cur[14] - orig[14], cur[15] - orig[15] }
+        CV.Invalidate()
     else
         refreshLive()
         CV.editM = live
+        CV.InvalidateDyn()
     end
 end
 
@@ -245,6 +247,7 @@ function CE.Start(d)
         refreshLive()
         CV.editBi = d.bi
         CV.editM = live
+        CV.DropEditCache()
         CV.drawOffset = nil
         CV.RebuildStatic()
     end
@@ -325,6 +328,7 @@ function CE.Stop(restore)
     CE.whole = false
     CV.editBi = nil
     CV.editM = nil
+    CV.DropEditCache()
     CV.drawOffset = nil
     if CT.Gizmo.mode == 'scale' then
         CT.Gizmo.mode = 'translate'
