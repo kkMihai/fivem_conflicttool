@@ -23,6 +23,8 @@ KKCT.conflicts = (() => {
     }
 
     const short = h => (h || '').slice(0, 8)
+
+    const byResource = (a, b) => (a.resource < b.resource ? -1 : a.resource > b.resource ? 1 : 0)
     const rpos = p => `${Math.round(p[0] * 4)}_${Math.round(p[1] * 4)}_${Math.round(p[2] * 4)}`
     const center = ext => ext ? [(ext.min[0] + ext.max[0]) / 2, (ext.min[1] + ext.max[1]) / 2, (ext.min[2] + ext.max[2]) / 2] : null
 
@@ -103,7 +105,8 @@ KKCT.conflicts = (() => {
         }
 
         for (const [key, entries] of index) {
-            const sorted = [...entries].sort((a, b) => ((a.inStream ? 1 : 0) - (b.inStream ? 1 : 0)) || (a.order - b.order))
+            const sorted = [...entries].sort((a, b) =>
+                ((a.inStream ? 1 : 0) - (b.inStream ? 1 : 0)) || byResource(a, b) || (a.order - b.order))
             const winner = sorted[sorted.length - 1]
             if (winner.ext === 'ymap' && winner.parsed) {
                 for (const b of winner.parsed.boxOccluders || []) {
@@ -163,10 +166,12 @@ KKCT.conflicts = (() => {
                     ? `${sorted.length} resources ship an identical copy of ${key}. Only one is needed, the rest waste memory and load time.`
                     : ext === 'ytd'
                         ? `${sorted.length} resources ship different versions of texture dictionary ${key}. Only the last loaded wins, so models using it can show the wrong textures.`
-                        : `${sorted.length} resources ship different versions of ${key}. Map files override by name, so only the script loaded last takes effect.`
+                        : `${sorted.length} resources ship different versions of ${key}. Map files override by name, so only the copy that registers last takes effect.`
             const note = vanilla
                 ? 'This file overrides a vanilla GTA map file. Removing every copy restores the base game.'
-                : 'The copy loaded last is the one players get in game. Disable the other copies so this stays predictable.'
+                : resCount === 1
+                    ? 'Both copies sit in one resource, so which one the game picks is decided when the resource is packed, not by load order.'
+                    : 'The game registers streaming files in resource name order and the last one overrides the rest, so the copy shown as active is the one players get. Restarting a resource while the server runs re-registers it and hands it the win instead.'
 
             out.push({
                 id: nid(cat === 'coll' ? 'c_coll' : cat === 'occl' ? 'c_occl' : 'c_asset'),
@@ -188,7 +193,7 @@ KKCT.conflicts = (() => {
                     sha1: short(s.sha1),
                     fullSha1: s.sha1,
                     status: i === sorted.length - 1
-                        ? 'loads last · active in game'
+                        ? 'registers last · active'
                         : (winner.inStream && !s.inStream
                             ? 'never loads · outside stream'
                             : (identical ? 'identical copy' : 'overridden'))
