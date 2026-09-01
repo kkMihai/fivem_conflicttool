@@ -1,3 +1,8 @@
+local function setFocus(on, keepInput)
+    SetNuiFocus(on, on)
+    SetNuiFocusKeepInput(keepInput or false)
+end
+
 local function setCursorMode(on)
     if on == CT.cursorMode then return end
     CT.cursorMode = on
@@ -11,18 +16,17 @@ end
 function CT.ApplyFocus()
     if not CT.open then
         setCursorMode(false)
-        SetNuiFocus(false, false)
+        setFocus(false, false)
         return
     end
     if CT.camLook then
         CT.overUi = false
         setCursorMode(false)
-        SetNuiFocus(false, false)
+        setFocus(false, false)
         return
     end
     if CT.typing or CT.overUi then
-        SetNuiFocus(true, true)
-        SetNuiFocusKeepInput(not CT.typing)
+        setFocus(true, not CT.typing)
         setCursorMode(false)
         if CT.typing then
             CT.Freecam.ClearMove()
@@ -30,7 +34,7 @@ function CT.ApplyFocus()
         return
     end
     setCursorMode(true)
-    SetNuiFocus(false, false)
+    setFocus(false, false)
 end
 
 CreateThread(function()
@@ -97,7 +101,7 @@ function CT.Close()
     CT.CollisionViz.Clear()
     CT.Freecam.Stop()
     setCursorMode(false)
-    SetNuiFocus(false, false)
+    setFocus(false, false)
     CT.NuiSend('setVisible', false)
 end
 
@@ -261,12 +265,11 @@ CreateThread(function()
 end)
 
 AddEventHandler('onResourceStop', function(res)
-    if res == GetCurrentResourceName() then
-        if CT.open then
-            setCursorMode(false)
-            SetNuiFocus(false, false)
-            CT.Freecam.Stop()
-            DisplayRadar(radarWasVisible)
-        end
+    if res ~= GetCurrentResourceName() then return end
+    setCursorMode(false)
+    setFocus(false, false)
+    if CT.open then
+        CT.Freecam.Stop()
+        DisplayRadar(radarWasVisible)
     end
 end)
