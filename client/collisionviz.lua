@@ -22,13 +22,14 @@ local DrawPoly = DrawPoly
 local DrawLine = DrawLine
 local floor = math.floor
 local sqrt = math.sqrt
-local CELL = 50.0
+local CELL = 20.0
 local PULL = 0.5
 
-local POLY_TOTAL = 5000
+local POLY_TOTAL = 3000
 local LINE_TOTAL = 4000
-local DYN_POLY = 2500
+local DYN_POLY = 1500
 local DYN_LINE = 2000
+local EDGE_SLACK = 4.0
 local WIRE_R = 25.0
 local WIRE_D2 = WIRE_R * WIRE_R
 local DRAW_R = 300.0
@@ -57,7 +58,7 @@ CV.Pull = pull
 
 local pnx, pny, pnz = {}, {}, {}
 local eyeX, eyeY, eyeZ = 0.0, 0.0, 0.0
-local areaTh = 5e-11
+local areaTh = 3.7e-6
 
 local function buildFrustum(px, py, pz, fx, fy, fz)
     eyeX, eyeY, eyeZ = px, py, pz
@@ -74,9 +75,7 @@ local function buildFrustum(px, py, pz, fx, fy, fz)
     local aspect = (CT.uiW > 0 and CT.uiH > 0) and (CT.uiW / CT.uiH) or 1.7777
     local th = tv * aspect
     local h = (CT.uiH > 0) and CT.uiH or 1080.0
-    local t2 = tv * tv
-    local h2 = h * h
-    areaTh = 64.0 * MIN_PX * MIN_PX * t2 * t2 / (h2 * h2)
+    areaTh = 4.0 * MIN_PX * tv * tv / (h * h)
     local sh = 1.0 / sqrt(th * th + 1.0)
     local sv = 1.0 / sqrt(tv * tv + 1.0)
     pnx[1], pny[1], pnz[1] = (th * fx + rx) * sh, (th * fy + ry) * sh, (th * fz) * sh
@@ -96,18 +95,18 @@ end
 
 CV.SphereVisible = sphereVisible
 CV.BuildFrustum = buildFrustum
+CV.pnx, CV.pny, CV.pnz = pnx, pny, pnz
 
 local BUCKETS = 56
 local BUCKET_STEP = DRAW_R / BUCKETS
 
 local function newBuckets()
-    local bk = { tab = {}, off = {}, col = {}, knd = {}, n = {} }
+    local bk = { poly = {}, pn = {}, line = {}, ln = {} }
     for i = 1, BUCKETS do
-        bk.tab[i] = {}
-        bk.off[i] = {}
-        bk.col[i] = {}
-        bk.knd[i] = {}
-        bk.n[i] = 0
+        bk.poly[i] = {}
+        bk.line[i] = {}
+        bk.pn[i] = 0
+        bk.ln[i] = 0
     end
     return bk
 end
@@ -115,22 +114,66 @@ end
 local S = newBuckets()
 local D = newBuckets()
 
+local camX, camY, camZ = 0.0, 0.0, 0.0
+
 local function resetBuckets(bk)
-    local n = bk.n
+    local pn, ln = bk.pn, bk.ln
     for i = 1, BUCKETS do
-        n[i] = 0
+        pn[i] = 0
+        ln[i] = 0
     end
 end
 
-local function push(bk, dist, tbl, off, col, knd)
+local function push(bk, dist, t, i, col, knd, ox, oy, oz)
     local b = 1 + floor(dist / BUCKET_STEP)
     if b < 1 then b = 1 elseif b > BUCKETS then b = BUCKETS end
-    local i = bk.n[b] + 1
-    bk.n[b] = i
-    bk.tab[b][i] = tbl
-    bk.off[b][i] = off
-    bk.col[b][i] = col
-    bk.knd[b][i] = knd
+    local r = col // 65536
+    local g = (col // 256) % 256
+    local bl = col % 256
+    if knd == 2 then
+        local x1, y1, z1 = t[i + 1] + ox, t[i + 2] + oy, t[i + 3] + oz
+        local x2, y2, z2 = t[i + 4] + ox, t[i + 5] + oy, t[i + 6] + oz
+        local L = bk.line[b]
+        local n = bk.ln[b]
+        L[n + 1], L[n + 2], L[n + 3] = x1, y1, z1
+        L[n + 4], L[n + 5], L[n + 6] = x2, y2, z2
+        L[n + 7], L[n + 8], L[n + 9] = r * 0.35 + 15, g * 0.35 + 15, bl * 0.35 + 15
+        bk.ln[b] = n + 9
+        return
+    end
+    local x1, y1, z1 = t[i + 1] + ox, t[i + 2] + oy, t[i + 3] + oz
+    local x2, y2, z2 = t[i + 4] + ox, t[i + 5] + oy, t[i + 6] + oz
+    local x3, y3, z3 = t[i + 7] + ox, t[i + 8] + oy, t[i + 9] + oz
+    if t[i + 10] * (x1 - camX) + t[i + 11] * (y1 - camY) + t[i + 12] * (z1 - camZ) >= 0.0 then
+        x1, y1, z1, x3, y3, z3 = x3, y3, z3, x1, y1, z1
+    end
+    local P = bk.poly[b]
+    local n = bk.pn[b]
+    P[n + 1], P[n + 2], P[n + 3] = x1, y1, z1
+    P[n + 4], P[n + 5], P[n + 6] = x2, y2, z2
+    P[n + 7], P[n + 8], P[n + 9] = x3, y3, z3
+    P[n + 10], P[n + 11], P[n + 12] = r, g, bl
+    bk.pn[b] = n + 12
+    if knd ~= 0 then
+        local lr, lg, lb
+        if knd == 3 then
+            lr, lg, lb = 255, 255, 255
+        else
+            lr, lg, lb = r * 0.3 + 12, g * 0.3 + 12, bl * 0.3 + 12
+        end
+        local L = bk.line[b]
+        local m = bk.ln[b]
+        L[m + 1], L[m + 2], L[m + 3] = x1, y1, z1
+        L[m + 4], L[m + 5], L[m + 6] = x2, y2, z2
+        L[m + 7], L[m + 8], L[m + 9] = lr, lg, lb
+        L[m + 10], L[m + 11], L[m + 12] = x2, y2, z2
+        L[m + 13], L[m + 14], L[m + 15] = x3, y3, z3
+        L[m + 16], L[m + 17], L[m + 18] = lr, lg, lb
+        L[m + 19], L[m + 20], L[m + 21] = x3, y3, z3
+        L[m + 22], L[m + 23], L[m + 24] = x1, y1, z1
+        L[m + 25], L[m + 26], L[m + 27] = lr, lg, lb
+        bk.ln[b] = m + 27
+    end
 end
 
 local colCache = {}
@@ -154,7 +197,7 @@ end
 
 function CV.ResetColors()
     colCache = {}
-    CV.Invalidate()
+    CV.Touch()
 end
 
 function CV.SurfaceColor(ty)
@@ -198,7 +241,7 @@ function CV.PushDynTri(dist, tbl, off, col, knd)
             dynLine = dynLine - 3
         end
     end
-    push(D, dist, tbl, off, col, knd)
+    push(D, dist, tbl, off, col, knd, 0.0, 0.0, 0.0)
     return true
 end
 
@@ -314,7 +357,9 @@ function CV.BuildChunks(src, count, types, useIndex)
         local x1, y1, z1 = src[o + 1], src[o + 2], src[o + 3]
         local x2, y2, z2 = src[o + 4], src[o + 5], src[o + 6]
         local x3, y3, z3 = src[o + 7], src[o + 8], src[o + 9]
-        local key = floor(x1 / CELL) * 100000 + floor(y1 / CELL)
+        local key = (floor(x1 / CELL) % 1024) * 1048576
+            + (floor(y1 / CELL) % 1024) * 1024
+            + (floor(z1 / CELL) % 1024)
         local c = map[key]
         if not c then
             c = newChunk()
@@ -326,7 +371,7 @@ function CV.BuildChunks(src, count, types, useIndex)
         local nx = uy * vz - uz * vy
         local ny = uz * vx - ux * vz
         local nz = ux * vy - uy * vx
-        local ty = useIndex and i or (types and types[i] or -1)
+        local ty = useIndex and i or packSurface(types and types[i] or -1)
         local a = c.t
         local b = c.tn * 14
         a[b + 1], a[b + 2], a[b + 3] = x1, y1, z1
@@ -334,7 +379,7 @@ function CV.BuildChunks(src, count, types, useIndex)
         a[b + 7], a[b + 8], a[b + 9] = x3, y3, z3
         a[b + 10], a[b + 11], a[b + 12] = nx, ny, nz
         a[b + 13] = ty
-        a[b + 14] = nx * nx + ny * ny + nz * nz
+        a[b + 14] = sqrt(nx * nx + ny * ny + nz * nz) * 0.5
         c.tn = c.tn + 1
         grow(c, x1, y1, z1)
         grow(c, x2, y2, z2)
@@ -359,16 +404,45 @@ local function byDist(a, b)
 end
 
 function CV.SortByDist(chunks, px, py, pz)
-    for i = 1, #chunks do
+    local n = #chunks
+    for i = 1, n do
         local c = chunks[i]
         local dx, dy, dz = c.cx - px, c.cy - py, c.cz - pz
         c.d2 = dx * dx + dy * dy + dz * dz
     end
-    table.sort(chunks, byDist)
+    local lx, ly, lz = chunks.sx, chunks.sy, chunks.sz
+    local near = false
+    if lx then
+        local dx, dy, dz = px - lx, py - ly, pz - lz
+        near = (dx * dx + dy * dy + dz * dz) < 2500.0
+    end
+    chunks.sx, chunks.sy, chunks.sz = px, py, pz
+    if not near then
+        table.sort(chunks, byDist)
+        return
+    end
+    for i = 2, n do
+        local v = chunks[i]
+        local d = v.d2
+        local j = i - 1
+        while j > 0 and chunks[j].d2 > d do
+            chunks[j + 1] = chunks[j]
+            j = j - 1
+        end
+        chunks[j + 1] = v
+    end
 end
 
-function CV.AreaVisible(lenSq, d2)
-    return lenSq > areaTh * d2 * d2
+function CV.AreaVisible(area, d2)
+    return area > areaTh * d2
+end
+
+function CV.AreaThreshold()
+    return areaTh
+end
+
+function CV.EdgeSlack()
+    return EDGE_SLACK
 end
 
 CV.WireD2 = WIRE_D2
@@ -417,11 +491,13 @@ local function boundSphere(b)
     end
     local mnx, mny, mnz = 1e30, 1e30, 1e30
     local mxx, mxy, mxz = -1e30, -1e30, -1e30
+    local w = {}
     for i = 0, 7 do
         local x = (i % 2 == 1) and mx[1] or mn[1]
         local y = (floor(i / 2) % 2 == 1) and mx[2] or mn[2]
         local z = (floor(i / 4) % 2 == 1) and mx[3] or mn[3]
         local wx, wy, wz = xf(b.m, x, y, z)
+        w[i * 3 + 1], w[i * 3 + 2], w[i * 3 + 3] = wx, wy, wz
         if wx < mnx then mnx = wx end
         if wy < mny then mny = wy end
         if wz < mnz then mnz = wz end
@@ -432,6 +508,7 @@ local function boundSphere(b)
     b.wcx, b.wcy, b.wcz = (mnx + mxx) * 0.5, (mny + mxy) * 0.5, (mnz + mxz) * 0.5
     local hx, hy, hz = mxx - b.wcx, mxy - b.wcy, mxz - b.wcz
     b.wr = sqrt(hx * hx + hy * hy + hz * hz)
+    b.wc = w
 end
 
 function CV.SetBounds(payload)
@@ -497,8 +574,8 @@ local function buildEditLocal()
         w[o + 7], w[o + 8], w[o + 9] = x3, y3, z3
         w[o + 10], w[o + 11], w[o + 12] = nx, ny, nz
         local slot = slots and slots[k]
-        w[o + 13] = (slot and slotType and slotType[slot]) or -1
-        w[o + 14] = nx * nx + ny * ny + nz * nz
+        w[o + 13] = packSurface((slot and slotType and slotType[slot]) or -1)
+        w[o + 14] = sqrt(nx * nx + ny * ny + nz * nz) * 0.5
         n = n + 1
     end
     editLocal, editLocalN = w, n
@@ -597,12 +674,23 @@ local function gatherStatic(px, py, pz, fx, fy, fz)
     CV.SortByDist(chunks, px - ox, py - oy, pz - oz)
     local poly = CV.dynActive and (POLY_TOTAL - DYN_POLY) or POLY_TOTAL
     local line = CV.dynActive and (LINE_TOTAL - DYN_LINE) or LINE_TOTAL
+    local n1x, n1y, n1z = pnx[1], pny[1], pnz[1]
+    local n2x, n2y, n2z = pnx[2], pny[2], pnz[2]
+    local n3x, n3y, n3z = pnx[3], pny[3], pnz[3]
+    local n4x, n4y, n4z = pnx[4], pny[4], pnz[4]
     for ci = 1, #chunks do
         if poly <= 0 then break end
         local c = chunks[ci]
         local r = c.r
         local far = DRAW_R + r
         if c.d2 < far * far and sphereVisible(c.cx + ox, c.cy + oy, c.cz + oz, r) then
+            local cdx = c.cx + ox - px
+            local cdy = c.cy + oy - py
+            local cdz = c.cz + oz - pz
+            local allIn = cdx * n1x + cdy * n1y + cdz * n1z >= r
+                and cdx * n2x + cdy * n2y + cdz * n2z >= r
+                and cdx * n3x + cdy * n3y + cdz * n3z >= r
+                and cdx * n4x + cdy * n4y + cdz * n4z >= r
             local t = c.t
             for j = 0, c.tn - 1 do
                 if poly <= 0 then break end
@@ -611,10 +699,14 @@ local function gatherStatic(px, py, pz, fx, fy, fz)
                 local dy = t[o + 2] + oy - py
                 local dz = t[o + 3] + oz - pz
                 local d2 = dx * dx + dy * dy + dz * dz
-                if d2 < DRAW_D2 and t[o + 14] > areaTh * d2 * d2
-                    and dx * fx + dy * fy + dz * fz > -4.0 then
+                if d2 < DRAW_D2 and t[o + 14] > areaTh * d2
+                    and dx * fx + dy * fy + dz * fz > -EDGE_SLACK
+                    and (allIn or (dx * n1x + dy * n1y + dz * n1z > -EDGE_SLACK
+                        and dx * n2x + dy * n2y + dz * n2z > -EDGE_SLACK
+                        and dx * n3x + dy * n3y + dz * n3z > -EDGE_SLACK
+                        and dx * n4x + dy * n4y + dz * n4z > -EDGE_SLACK)) then
                     poly = poly - 1
-                    push(S, sqrt(d2), t, o, packSurface(t[o + 13]), 0)
+                    push(S, sqrt(d2), t, o, t[o + 13], 0, ox, oy, oz)
                 end
             end
             local near = WIRE_R + r
@@ -627,9 +719,13 @@ local function gatherStatic(px, py, pz, fx, fy, fz)
                     local dy = e[o + 2] + oy - py
                     local dz = e[o + 3] + oz - pz
                     local d2 = dx * dx + dy * dy + dz * dz
-                    if d2 < WIRE_D2 then
+                    if d2 < WIRE_D2
+                        and (allIn or (dx * n1x + dy * n1y + dz * n1z > -EDGE_SLACK
+                            and dx * n2x + dy * n2y + dz * n2z > -EDGE_SLACK
+                            and dx * n3x + dy * n3y + dz * n3z > -EDGE_SLACK
+                            and dx * n4x + dy * n4y + dz * n4z > -EDGE_SLACK)) then
                         line = line - 1
-                        push(S, sqrt(d2), e, o, packSurface(e[o + 7]), 2)
+                        push(S, sqrt(d2), e, o, e[o + 7], 2, ox, oy, oz)
                     end
                 end
             end
@@ -649,6 +745,10 @@ local function gatherEdit(px, py, pz, fx, fy, fz)
     local b1, b2, b3 = m[5], m[6], m[7]
     local c1, c2, c3 = m[9], m[10], m[11]
     local t1, t2, t3 = m[13], m[14], m[15]
+    local n1x, n1y, n1z = pnx[1], pny[1], pnz[1]
+    local n2x, n2y, n2z = pnx[2], pny[2], pnz[2]
+    local n3x, n3y, n3z = pnx[3], pny[3], pnz[3]
+    local n4x, n4y, n4z = pnx[4], pny[4], pnz[4]
     local w = editScratch
     local n = 0
     for j = 0, editLocalN - 1 do
@@ -659,8 +759,12 @@ local function gatherEdit(px, py, pz, fx, fy, fz)
         local z1 = a3 * lx + b3 * ly + c3 * lz + t3
         local dx, dy, dz = x1 - px, y1 - py, z1 - pz
         local d2 = dx * dx + dy * dy + dz * dz
-        if d2 < DRAW_D2 and L[o + 14] > areaTh * d2 * d2
-            and dx * fx + dy * fy + dz * fz > -4.0 then
+        if d2 < DRAW_D2 and L[o + 14] > areaTh * d2
+            and dx * fx + dy * fy + dz * fz > -EDGE_SLACK
+            and dx * n1x + dy * n1y + dz * n1z > -EDGE_SLACK
+            and dx * n2x + dy * n2y + dz * n2z > -EDGE_SLACK
+            and dx * n3x + dy * n3y + dz * n3z > -EDGE_SLACK
+            and dx * n4x + dy * n4y + dz * n4z > -EDGE_SLACK then
             local q = n * 14
             lx, ly, lz = L[o + 4], L[o + 5], L[o + 6]
             w[q + 4] = a1 * lx + b1 * ly + c1 * lz + t1
@@ -676,58 +780,57 @@ local function gatherEdit(px, py, pz, fx, fy, fz)
             w[q + 11] = a2 * lx + b2 * ly + c2 * lz
             w[q + 12] = a3 * lx + b3 * ly + c3 * lz
             n = n + 1
-            if not CV.PushDynTri(sqrt(d2), w, q, packSurface(L[o + 13]), d2 < WIRE_D2 and 3 or 0) then
+            if not CV.PushDynTri(sqrt(d2), w, q, L[o + 13], d2 < WIRE_D2 and 3 or 0) then
                 return
             end
         end
     end
 end
 
-local function drawBucket(bk, b, n, ox, oy, oz, px, py, pz)
-    local tabs, offs, cols, knds = bk.tab[b], bk.off[b], bk.col[b], bk.knd[b]
-    for k = 1, n do
-        local t = tabs[k]
-        local i = offs[k]
-        local col = cols[k]
-        local knd = knds[k]
-        local r = col // 65536
-        local g = (col // 256) % 256
-        local bl = col % 256
-        if knd == 2 then
-            local x1, y1, z1 = t[i + 1] + ox, t[i + 2] + oy, t[i + 3] + oz
-            local x2, y2, z2 = t[i + 4] + ox, t[i + 5] + oy, t[i + 6] + oz
-            if xrOn then
-                x1, y1, z1 = pull(x1, y1, z1)
-                x2, y2, z2 = pull(x2, y2, z2)
-            end
-            DrawLine(x1, y1, z1, x2, y2, z2, r * 0.35 + 15, g * 0.35 + 15, bl * 0.35 + 15, 255)
-        else
-            local x1, y1, z1 = t[i + 1] + ox, t[i + 2] + oy, t[i + 3] + oz
-            local x2, y2, z2 = t[i + 4] + ox, t[i + 5] + oy, t[i + 6] + oz
-            local x3, y3, z3 = t[i + 7] + ox, t[i + 8] + oy, t[i + 9] + oz
-            local flip = t[i + 10] * (x1 - px) + t[i + 11] * (y1 - py) + t[i + 12] * (z1 - pz) >= 0.0
-            if xrOn then
-                x1, y1, z1 = pull(x1, y1, z1)
-                x2, y2, z2 = pull(x2, y2, z2)
-                x3, y3, z3 = pull(x3, y3, z3)
-            end
-            if flip then
-                DrawPoly(x3, y3, z3, x2, y2, z2, x1, y1, z1, r, g, bl, 255)
-            else
-                DrawPoly(x1, y1, z1, x2, y2, z2, x3, y3, z3, r, g, bl, 255)
-            end
-            if knd ~= 0 then
-                local lr, lg, lb
-                if knd == 3 then
-                    lr, lg, lb = 255, 255, 255
-                else
-                    lr, lg, lb = r * 0.3 + 12, g * 0.3 + 12, bl * 0.3 + 12
-                end
-                DrawLine(x1, y1, z1, x2, y2, z2, lr, lg, lb, 255)
-                DrawLine(x2, y2, z2, x3, y3, z3, lr, lg, lb, 255)
-                DrawLine(x3, y3, z3, x1, y1, z1, lr, lg, lb, 255)
-            end
-        end
+local function sweepPoly(P, n)
+    for i = 1, n, 12 do
+        DrawPoly(P[i], P[i + 1], P[i + 2], P[i + 3], P[i + 4], P[i + 5],
+            P[i + 6], P[i + 7], P[i + 8], P[i + 9], P[i + 10], P[i + 11], 255)
+    end
+end
+
+local function sweepPolyXray(P, n)
+    for i = 1, n, 12 do
+        local x1, y1, z1 = pull(P[i], P[i + 1], P[i + 2])
+        local x2, y2, z2 = pull(P[i + 3], P[i + 4], P[i + 5])
+        local x3, y3, z3 = pull(P[i + 6], P[i + 7], P[i + 8])
+        DrawPoly(x1, y1, z1, x2, y2, z2, x3, y3, z3,
+            P[i + 9], P[i + 10], P[i + 11], 255)
+    end
+end
+
+local function sweepLine(L, n)
+    for i = 1, n, 9 do
+        DrawLine(L[i], L[i + 1], L[i + 2], L[i + 3], L[i + 4], L[i + 5],
+            L[i + 6], L[i + 7], L[i + 8], 255)
+    end
+end
+
+local function sweepLineXray(L, n)
+    for i = 1, n, 9 do
+        local x1, y1, z1 = pull(L[i], L[i + 1], L[i + 2])
+        local x2, y2, z2 = pull(L[i + 3], L[i + 4], L[i + 5])
+        DrawLine(x1, y1, z1, x2, y2, z2, L[i + 6], L[i + 7], L[i + 8], 255)
+    end
+end
+
+local function drawFlat()
+    local sp = xrOn and sweepPolyXray or sweepPoly
+    local sl = xrOn and sweepLineXray or sweepLine
+    for b = BUCKETS, 1, -1 do
+        local n = S.pn[b]
+        if n > 0 then sp(S.poly[b], n) end
+        n = D.pn[b]
+        if n > 0 then sp(D.poly[b], n) end
+        n = S.ln[b]
+        if n > 0 then sl(S.line[b], n) end
+        n = D.ln[b]
+        if n > 0 then sl(D.line[b], n) end
     end
 end
 
@@ -749,11 +852,34 @@ local function drawBox(b, r, g, bl, a)
     end
 end
 
-local function quadBoth(p1, p2, p3, p4, r, g, b, a)
-    DrawPoly(p1[1], p1[2], p1[3], p2[1], p2[2], p2[3], p3[1], p3[2], p3[3], r, g, b, a)
-    DrawPoly(p3[1], p3[2], p3[3], p2[1], p2[2], p2[3], p1[1], p1[2], p1[3], r, g, b, a)
-    DrawPoly(p1[1], p1[2], p1[3], p3[1], p3[2], p3[3], p4[1], p4[2], p4[3], r, g, b, a)
-    DrawPoly(p4[1], p4[2], p4[3], p3[1], p3[2], p3[3], p1[1], p1[2], p1[3], r, g, b, a)
+local OCC_SIGN = {
+    -1, -1, -1,
+    1, -1, -1,
+    1, 1, -1,
+    -1, 1, -1,
+    -1, -1, 1,
+    1, -1, 1,
+    1, 1, 1,
+    -1, 1, 1
+}
+local OCC_EDGES = { 0, 1, 1, 2, 2, 3, 3, 0, 4, 5, 5, 6, 6, 7, 7, 4, 0, 4, 1, 5, 2, 6, 3, 7 }
+local occScratch = {}
+
+local function occQuad(s, a, b, c, d, r, g, bl, al)
+    local ai, bi, ci, di = a * 3, b * 3, c * 3, d * 3
+    local ax, ay, az = s[ai + 1], s[ai + 2], s[ai + 3]
+    local bx, by, bz = s[bi + 1], s[bi + 2], s[bi + 3]
+    local cx, cy, cz = s[ci + 1], s[ci + 2], s[ci + 3]
+    local dx, dy, dz = s[di + 1], s[di + 2], s[di + 3]
+    DrawPoly(ax, ay, az, bx, by, bz, cx, cy, cz, r, g, bl, al)
+    DrawPoly(cx, cy, cz, bx, by, bz, ax, ay, az, r, g, bl, al)
+    DrawPoly(ax, ay, az, cx, cy, cz, dx, dy, dz, r, g, bl, al)
+    DrawPoly(dx, dy, dz, cx, cy, cz, ax, ay, az, r, g, bl, al)
+end
+
+local function occLine(s, a, b, r, g, bl, al)
+    local ai, bi = a * 3, b * 3
+    DrawLine(s[ai + 1], s[ai + 2], s[ai + 3], s[bi + 1], s[bi + 2], s[bi + 3], r, g, bl, al)
 end
 
 local function drawOcclBox(b, idx)
@@ -770,42 +896,59 @@ local function drawOcclBox(b, idx)
     else
         co, si = 1.0, 0.0
     end
-    local function corner(sx, sy, sz)
-        local lx, ly = sx * hl, sy * hw
-        return { pull(lx * co - ly * si + cx, lx * si + ly * co + cy, cz0 + sz * hh) }
+    local s = occScratch
+    for i = 0, 7 do
+        local o = i * 3
+        local lx, ly = OCC_SIGN[o + 1] * hl, OCC_SIGN[o + 2] * hw
+        s[o + 1], s[o + 2], s[o + 3] = pull(lx * co - ly * si + cx, lx * si + ly * co + cy,
+            cz0 + OCC_SIGN[o + 3] * hh)
     end
-    local c1, c2, c3, c4 = corner(-1, -1, -1), corner(1, -1, -1), corner(1, 1, -1), corner(-1, 1, -1)
-    local t1, t2, t3, t4 = corner(-1, -1, 1), corner(1, -1, 1), corner(1, 1, 1), corner(-1, 1, 1)
-    quadBoth(t1, t2, t3, t4, cr, cg, cb, 45)
-    quadBoth(c1, c2, t2, t1, cr, cg, cb, 30)
-    quadBoth(c2, c3, t3, t2, cr, cg, cb, 30)
-    quadBoth(c3, c4, t4, t3, cr, cg, cb, 30)
-    quadBoth(c4, c1, t1, t4, cr, cg, cb, 30)
-    local edges = { { c1, c2 }, { c2, c3 }, { c3, c4 }, { c4, c1 }, { t1, t2 }, { t2, t3 }, { t3, t4 }, { t4, t1 }, { c1, t1 }, { c2, t2 }, { c3, t3 }, { c4, t4 } }
-    for _, e in ipairs(edges) do
-        DrawLine(e[1][1], e[1][2], e[1][3], e[2][1], e[2][2], e[2][3], cr, cg, cb, 200)
+    occQuad(s, 4, 5, 6, 7, cr, cg, cb, 45)
+    occQuad(s, 0, 1, 5, 4, cr, cg, cb, 30)
+    occQuad(s, 1, 2, 6, 5, cr, cg, cb, 30)
+    occQuad(s, 2, 3, 7, 6, cr, cg, cb, 30)
+    occQuad(s, 3, 0, 4, 7, cr, cg, cb, 30)
+    for k = 1, 24, 2 do
+        occLine(s, OCC_EDGES[k], OCC_EDGES[k + 1], cr, cg, cb, 200)
     end
     local oe = CT.OcclEdit
     if oe.active and oe.face and idx == oe.vizIndex then
         local ax, sg = oe.face.axis, oe.face.sign
         local f1, f2, f3, f4
         if ax == 1 then
-            f1, f2, f3, f4 = corner(sg, -1, -1), corner(sg, 1, -1), corner(sg, 1, 1), corner(sg, -1, 1)
+            if sg < 0 then f1, f2, f3, f4 = 0, 3, 7, 4 else f1, f2, f3, f4 = 1, 2, 6, 5 end
         elseif ax == 2 then
-            f1, f2, f3, f4 = corner(-1, sg, -1), corner(1, sg, -1), corner(1, sg, 1), corner(-1, sg, 1)
+            if sg < 0 then f1, f2, f3, f4 = 0, 1, 5, 4 else f1, f2, f3, f4 = 3, 2, 6, 7 end
         else
-            f1, f2, f3, f4 = corner(-1, -1, sg), corner(1, -1, sg), corner(1, 1, sg), corner(-1, 1, sg)
+            if sg < 0 then f1, f2, f3, f4 = 0, 1, 2, 3 else f1, f2, f3, f4 = 4, 5, 6, 7 end
         end
-        quadBoth(f1, f2, f3, f4, 255, 255, 255, 110)
-        for _, e in ipairs({ { f1, f2 }, { f2, f3 }, { f3, f4 }, { f4, f1 } }) do
-            DrawLine(e[1][1], e[1][2], e[1][3], e[2][1], e[2][2], e[2][3], 255, 255, 255, 255)
-        end
+        occQuad(s, f1, f2, f3, f4, 255, 255, 255, 110)
+        occLine(s, f1, f2, 255, 255, 255, 255)
+        occLine(s, f2, f3, 255, 255, 255, 255)
+        occLine(s, f3, f4, 255, 255, 255, 255)
+        occLine(s, f4, f1, 255, 255, 255, 255)
     end
 end
 
 function CV.HasContent()
     return next(CV.boxes) ~= nil or next(CV.sets) ~= nil or (CV.occl ~= nil and #CV.occl > 0)
         or (CV.bounds ~= nil and #CV.bounds > 0)
+end
+
+local BOX_EDGES = { 1, 2, 2, 4, 4, 3, 3, 1, 5, 6, 6, 8, 8, 7, 7, 5, 1, 5, 2, 6, 3, 7, 4, 8 }
+local boxScratch = {}
+
+local function drawBoundCorners(w, ox, oy, oz, r, g, bl, a)
+    local s = boxScratch
+    for i = 0, 7 do
+        local o = i * 3
+        s[o + 1], s[o + 2], s[o + 3] = pull(w[o + 1] + ox, w[o + 2] + oy, w[o + 3] + oz)
+    end
+    for k = 1, 24, 2 do
+        local i = (BOX_EDGES[k] - 1) * 3
+        local j = (BOX_EDGES[k + 1] - 1) * 3
+        DrawLine(s[i + 1], s[i + 2], s[i + 3], s[j + 1], s[j + 2], s[j + 3], r, g, bl, a)
+    end
 end
 
 local function drawBoundBox(b, m, ox, oy, oz, r, g, bl, a)
@@ -839,6 +982,7 @@ function CV.DrawFrame(px, py, pz, fx, fy, fz)
     xrOn = CT.xray
     xrX, xrY, xrZ = px, py, pz
     xrFx, xrFy, xrFz = fx, fy, fz
+    camX, camY, camZ = px, py, pz
     buildFrustum(px, py, pz, fx, fy, fz)
 
     local mx, my, mz = px - lastPx, py - lastPy, pz - lastPz
@@ -882,16 +1026,7 @@ function CV.DrawFrame(px, py, pz, fx, fy, fz)
         drawBox(b, 255, 60, 60, 220)
     end
 
-    for b = BUCKETS, 1, -1 do
-        local sn = S.n[b]
-        if sn > 0 then
-            drawBucket(S, b, sn, ox, oy, oz, px, py, pz)
-        end
-        local dn = D.n[b]
-        if dn > 0 then
-            drawBucket(D, b, dn, 0.0, 0.0, 0.0, px, py, pz)
-        end
-    end
+    drawFlat()
 
     if CV.bounds then
         local drawn = 0
@@ -905,10 +1040,10 @@ function CV.DrawFrame(px, py, pz, fx, fy, fz)
                 if bx * bx + by * by + bz * bz < BOX_D2
                     and sphereVisible(b.wcx + ox, b.wcy + oy, b.wcz + oz, b.wr) then
                     if CV.boundSel == b.bi then
-                        drawBoundBox(b, b.m, ox, oy, oz, 255, 255, 255, 200)
+                        drawBoundCorners(b.wc, ox, oy, oz, 255, 255, 255, 200)
                     elseif drawn < BOX_LIMIT then
                         drawn = drawn + 1
-                        drawBoundBox(b, b.m, ox, oy, oz, 255, 90, 90, 120)
+                        drawBoundCorners(b.wc, ox, oy, oz, 255, 90, 90, 120)
                     end
                 end
             end

@@ -337,7 +337,7 @@ local function buildMoved()
         out[o + 7], out[o + 8], out[o + 9] = x3, y3, z3
         out[o + 10], out[o + 11], out[o + 12] = nx, ny, nz
         out[o + 13] = i
-        out[o + 14] = nx * nx + ny * ny + nz * nz
+        out[o + 14] = sqrt(nx * nx + ny * ny + nz * nz) * 0.5
         n = n + 1
     end
     moved = out
@@ -617,6 +617,13 @@ function FS.Gather(px, py, pz, fx, fy, fz)
     local drawD2 = CV.DrawD2
     local wireD2 = CV.WireD2
     local drawR = CV.DrawR
+    local areaTh = CV.AreaThreshold()
+    local slack = CV.EdgeSlack()
+    local pnx, pny, pnz = CV.pnx, CV.pny, CV.pnz
+    local n1x, n1y, n1z = pnx[1], pny[1], pnz[1]
+    local n2x, n2y, n2z = pnx[2], pny[2], pnz[2]
+    local n3x, n3y, n3z = pnx[3], pny[3], pnz[3]
+    local n4x, n4y, n4z = pnx[4], pny[4], pnz[4]
     local scol = selCol()
     CV.SortByDist(chunks, px, py, pz)
     for ci = 1, #chunks do
@@ -634,8 +641,12 @@ function FS.Gather(px, py, pz, fx, fy, fz)
                     local dy = t[o + 2] - py
                     local dz = t[o + 3] - pz
                     local d2 = dx * dx + dy * dy + dz * dz
-                    if d2 < drawD2 and CV.AreaVisible(t[o + 14], d2)
-                        and dx * fx + dy * fy + dz * fz > -3.0 then
+                    if d2 < drawD2 and t[o + 14] > areaTh * d2
+                        and dx * fx + dy * fy + dz * fz > -slack
+                        and dx * n1x + dy * n1y + dz * n1z > -slack
+                        and dx * n2x + dy * n2y + dz * n2z > -slack
+                        and dx * n3x + dy * n3y + dz * n3z > -slack
+                        and dx * n4x + dy * n4y + dz * n4z > -slack then
                         local col, knd
                         if picked then
                             col, knd = scol, 3
@@ -656,7 +667,11 @@ function FS.Gather(px, py, pz, fx, fy, fz)
             local dy = moved[o + 2] - py
             local dz = moved[o + 3] - pz
             local d2 = dx * dx + dy * dy + dz * dz
-            if d2 < drawD2 and dx * fx + dy * fy + dz * fz > -3.0 then
+            if d2 < drawD2 and dx * fx + dy * fy + dz * fz > -slack
+                and dx * n1x + dy * n1y + dz * n1z > -slack
+                and dx * n2x + dy * n2y + dz * n2z > -slack
+                and dx * n3x + dy * n3y + dz * n3z > -slack
+                and dx * n4x + dy * n4y + dz * n4z > -slack then
                 if not pushTri(sqrt(d2), moved, o, scol, 3) then return end
             end
         end
