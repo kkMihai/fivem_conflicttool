@@ -386,7 +386,6 @@ KKCT.resolver = (() => {
                 for (const d of job.decisions) {
                     d.state = 'applied'
                     d.bundleId = bundleId
-                    if (d.conflictId) appliedIds.add(d.conflictId)
                 }
                 if (b.first) {
                     recordMove(job.resource, job.rel, b.sha, b.dest, 'edit', { ybn: true })

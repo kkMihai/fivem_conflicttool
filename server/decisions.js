@@ -185,7 +185,7 @@ KKCT.decisions = (() => {
         undo,
         clearPending,
         queuedConflictIds: () => ({
-            assets: data.assets.filter(a => a.state === 'pending' && a.conflictId).map(a => a.conflictId),
+            assets: data.assets.filter(a => a.state === 'pending' && a.conflictId && a.action !== 'ybn').map(a => a.conflictId),
             entities: data.entities.filter(e => e.conflictId && entState(e) === 'live').map(e => e.conflictId),
             entityFiles: data.entities.filter(e => e.conflictId && entityFileJob(e)).map(e => e.conflictId)
         }),
