@@ -26,6 +26,113 @@ In-game map conflict scanner and resolver for FiveM. It scans every started reso
 - **Persistent decisions**: entity decisions apply at runtime for every player on spawn, and file decisions persist because the files are changed on disk.
 - **Remappable keys**: every bind is a FiveM key mapping and can be changed per player.
 
+## Showcase
+
+Screenshots last updated 2 September 2026, on v1.3.2.
+
+<details>
+<summary>Screenshots</summary>
+
+### Conflicts
+
+The list ranks every conflict by severity, with counts per category and a search box for a model or a script.
+
+![Conflict list](docs/showcase/conflict-list.png)
+
+Opening one explains why it is a conflict, shows every copy with its size and hash, and marks which one loads last.
+
+![Duplicate ybn conflict](docs/showcase/duplicate-ybn.png)
+
+Prop conflicts preview both sides in the world and resolve with keep, move or remove.
+
+![Prop conflict](docs/showcase/prop-conflict.png)
+
+Move puts the native gizmo on the object, with grid snap, snap to ground and numeric transform inputs.
+
+![Moving a prop](docs/showcase/prop-move.jpg)
+
+### World
+
+Every conflict gets a color-coded beam and a marker.
+
+![World markers](docs/showcase/world-markers.png)
+
+Hovering a marker names the model under the cursor.
+
+![Marker hover](docs/showcase/marker-hover.png)
+
+Right clicking one offers the actions that apply to it.
+
+![Prop marker menu](docs/showcase/marker-menu-prop.png)
+
+![Collision marker menu](docs/showcase/marker-menu-collision.png)
+
+### Occluders
+
+Overlapping boxes draw in the world, each in its own color, and can be shrunk, removed or merged into one volume.
+
+![Occluder cluster](docs/showcase/occluder-cluster.jpg)
+
+Edit puts the gizmo on a box, and right clicking a face extrudes just that side.
+
+![Extruding an occluder face](docs/showcase/occluder-extrude.jpg)
+
+### Collision
+
+Each bound moves and rotates with the gizmo, or the whole file moves as one.
+
+![Moving a collision bound](docs/showcase/collision-move-bound.png)
+
+Paint faces colours every face by its surface. Tap to select, hold to sweep, and set the selection to any surface.
+
+![Painting collision faces](docs/showcase/collision-paint-faces.png)
+
+Selected faces can be grabbed with the gizmo and moved as geometry.
+
+![Moving collision faces](docs/showcase/collision-move-faces.png)
+
+X-ray draws collision through walls and terrain.
+
+![Collision through terrain](docs/showcase/collision-xray.jpg)
+
+![Terrain collision mesh](docs/showcase/collision-terrain.png)
+
+### Resolving
+
+Auto queues the safe fixes in one click.
+
+![Auto resolve menu](docs/showcase/auto-resolve.png)
+
+The toolbar carries the scan, the tools and the Resolve counter.
+
+![Toolbar](docs/showcase/toolbar.png)
+
+![Resolve](docs/showcase/toolbar-resolve.png)
+
+Every apply lands in a timestamped bundle that restores with sha1 verification.
+
+![Apply bundles](docs/showcase/backups.png)
+
+### Panels
+
+Filters narrow the list by resource, asset kind or file type.
+
+![Script filter](docs/showcase/filter-scripts.png)
+
+![Asset kind filter](docs/showcase/filter-asset-kind.png)
+
+![File type filter](docs/showcase/filter-file-type.png)
+
+Weight ranks resources by streaming size and warns about files over 16 MB.
+
+![Streaming weight](docs/showcase/streaming-weight.png)
+
+Every bind is remappable in FiveM Settings.
+
+![Key bindings](docs/showcase/key-bindings.png)
+
+</details>
+
 ## Install
 
 1. Download the latest `fivem_conflicttool-vX.Y.Z.zip` from [Releases](https://github.com/kkMihai/fivem_conflicttool/releases) and unzip it into your `resources` folder. The zip ships a built UI and is ready to start.
