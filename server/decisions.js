@@ -9,6 +9,8 @@ KKCT.decisions = (() => {
     const journal = []
     let filePath = null
     let seq = 0
+    let held = 0
+    let heldDirty = false
 
     function init(rootDir) {
         filePath = path.join(rootDir, 'data', 'decisions.json')
@@ -43,12 +45,29 @@ KKCT.decisions = (() => {
     }
 
     function save() {
+        if (held) {
+            heldDirty = true
+            return
+        }
         data.updatedAt = new Date().toISOString()
         try {
             fs.mkdirSync(path.dirname(filePath), { recursive: true })
             fs.writeFileSync(filePath, JSON.stringify(data, null, 2))
         } catch (e) {
             console.log(`[fivem_conflicttool] decisions save failed: ${e.message}`)
+        }
+    }
+
+    function bulk(fn) {
+        held++
+        try {
+            return fn()
+        } finally {
+            held--
+            if (!held && heldDirty) {
+                heldDirty = false
+                save()
+            }
         }
     }
 
@@ -179,6 +198,7 @@ KKCT.decisions = (() => {
     return {
         init,
         save,
+        bulk,
         addEntity,
         addAsset,
         removeEntityByConflict,
