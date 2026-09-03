@@ -83,6 +83,17 @@ function broadcastDecisions() {
     emitNet('kk_ct:decisions', -1, KKCT.decisions.entities())
 }
 
+function progressTo(src) {
+    let last = 0
+    return p => {
+        const now = Date.now()
+        const done = p.total > 0 && p.step >= p.total
+        if (!done && now - last < 150) return
+        last = now
+        emitNet('kk_ct:applyProgress', src, p)
+    }
+}
+
 function pushState(src) {
     emitNet('kk_ct:state', src, {
         scanMeta: scanMeta(KKCT.scanner.last()),
@@ -378,37 +389,39 @@ onNet('kk_ct:autoResolve', scope => {
     const by = GetPlayerName(src)
     let count = 0
     const ids = []
-    for (const c of scan.conflicts) {
-        if (!c.autoRes || c.ignored) continue
-        if (scope !== 'all' && c.autoRes !== scope) continue
-        ids.push(c.id)
-        if (c.autoRes === 'assets' && c.suggested && c.suggested.losers) {
-            const winner = c.resources[c.resources.length - 1]
-            for (const loser of c.suggested.losers) {
-                KKCT.decisions.addAsset({
+    KKCT.decisions.bulk(() => {
+        for (const c of scan.conflicts) {
+            if (!c.autoRes || c.ignored) continue
+            if (scope !== 'all' && c.autoRes !== scope) continue
+            ids.push(c.id)
+            if (c.autoRes === 'assets' && c.suggested && c.suggested.losers) {
+                const winner = c.resources[c.resources.length - 1]
+                for (const loser of c.suggested.losers) {
+                    KKCT.decisions.addAsset({
+                        conflictId: c.id,
+                        file: c.file,
+                        loser: { resource: loser.resource, relPath: loser.rel, sha1: loser.sha1 },
+                        winner: winner ? { resource: winner.name, sha1: winner.fullSha1 } : null,
+                        by
+                    })
+                    count++
+                }
+            } else if (c.autoRes === 'props' && c.entity) {
+                KKCT.decisions.addEntity({
                     conflictId: c.id,
-                    file: c.file,
-                    loser: { resource: loser.resource, relPath: loser.rel, sha1: loser.sha1 },
-                    winner: winner ? { resource: winner.name, sha1: winner.fullSha1 } : null,
+                    action: 'remove',
+                    archetype: c.entity.name,
+                    hash: c.entity.model,
+                    guid: c.entity.guid,
+                    source: { resource: c.resources[1] ? c.resources[1].name : null, file: c.file },
+                    original: { pos: c.entity.pos, rot: c.entity.rot },
+                    hideRadius: c.entity.radius,
                     by
                 })
                 count++
             }
-        } else if (c.autoRes === 'props' && c.entity) {
-            KKCT.decisions.addEntity({
-                conflictId: c.id,
-                action: 'remove',
-                archetype: c.entity.name,
-                hash: c.entity.model,
-                guid: c.entity.guid,
-                source: { resource: c.resources[1] ? c.resources[1].name : null, file: c.file },
-                original: { pos: c.entity.pos, rot: c.entity.rot },
-                hideRadius: c.entity.radius,
-                by
-            })
-            count++
         }
-    }
+    })
     broadcastDecisions()
     emitNet('kk_ct:autoResolved', src, ids)
     emitNet('kk_ct:decisionsMeta', src, KKCT.decisions.meta())
@@ -450,12 +463,14 @@ onNet('kk_ct:ignore', d => {
 onNet('kk_ct:apply', () => {
     const src = source
     if (!allowed(src)) return
-    const progress = p => emitNet('kk_ct:applyProgress', src, p)
+    const progress = progressTo(src)
     KKCT.resolver.apply(progress).then(result => {
         emitNet('kk_ct:applyDone', src, result)
         pushState(src)
     }).catch(e => {
-        emitNet('kk_ct:applyDone', src, { summary: null, errors: [{ file: '', msg: e.message }], restartRequired: false })
+        console.log(`[fivem_conflicttool] apply failed: ${e.stack || e.message}`)
+        emitNet('kk_ct:applyDone', src, { summary: null, errors: [{ file: 'apply', msg: e.message }], restartRequired: false })
+        pushState(src)
     })
 })
 
@@ -469,7 +484,7 @@ onNet('kk_ct:restore', id => {
     const src = source
     if (!allowed(src)) return
     if (typeof id !== 'string' || id.includes('..') || id.includes('/') || id.includes('\\')) return
-    const progress = p => emitNet('kk_ct:applyProgress', src, p)
+    const progress = progressTo(src)
     KKCT.backups.restore(id, progress).then(result => {
         emitNet('kk_ct:applyDone', src, { summary: { restored: result.restored }, errors: result.errors, restartRequired: result.restartRequired, restore: true })
         emitNet('kk_ct:backupsList', src, KKCT.backups.list())
