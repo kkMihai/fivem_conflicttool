@@ -335,6 +335,9 @@ KKCT.resolver = (() => {
             })
         }
 
+        const entityJobs = KKCT.decisions.entityFileJobs()
+        const totalSteps = pending.length + ybnJobs.length + entityJobs.length
+
         for (const d of pending) {
             step++
             progress({ step, total: totalSteps, label: d.file })
@@ -366,9 +369,6 @@ KKCT.resolver = (() => {
             }
             await new Promise(r => setImmediate(r))
         }
-
-        const entityJobs = KKCT.decisions.entityFileJobs()
-        const totalSteps = pending.length + ybnJobs.length + entityJobs.length
 
         for (const job of ybnJobs) {
             step++
