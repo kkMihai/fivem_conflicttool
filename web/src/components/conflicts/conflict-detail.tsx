@@ -3,7 +3,7 @@ import { CollisionBounds } from '@/components/collision/collision-bounds'
 import { cn, OCCL_DOTS } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { useStore } from '@/store/use-store'
+import { keepsOriginal, useStore } from '@/store/use-store'
 import { fetchNui } from '@/lib/nui'
 import { fmtBytes } from '@/lib/utils'
 
@@ -22,6 +22,7 @@ export function ConflictDetail() {
     const conflicts = useStore(s => s.conflicts)
     const resolved = useStore(s => s.resolved)
     const decideEntity = useStore(s => s.decideEntity)
+    const keepEntity = useStore(s => s.keepEntity)
     const decideAsset = useStore(s => s.decideAsset)
     const startMove = useStore(s => s.startMove)
     const select = useStore(s => s.select)
@@ -43,6 +44,7 @@ export function ConflictDetail() {
     const c = conflicts.find(x => x.id === selectedId)
     if (!c) return null
     const pvLabels = c.entity ? previewLabels[c.kind] : undefined
+    const keepOriginal = keepsOriginal(c, preview)
     const tabbed = c.cat === 'coll'
     const tab = tabbed ? detailTab : 'conflict'
 
@@ -181,9 +183,13 @@ export function ConflictDetail() {
                 <div className="mx-3 mt-2.5 grid grid-cols-3 gap-1.5">
                     {c.entity ? (
                         <>
-                            <Button variant="secondary" onClick={() => decideEntity(c, 'keep')}>
+                            <Button
+                                variant="secondary"
+                                title={keepOriginal ? 'Put the moved copy back on the original spot' : c.target ? 'Keep the placement that is in the world now' : 'Keep this object as it is'}
+                                onClick={() => keepEntity(c)}
+                            >
                                 <Check />
-                                Keep
+                                {keepOriginal ? 'Keep original' : 'Keep'}
                             </Button>
                             <Button variant="secondary" onClick={() => startMove(c)}>
                                 <ArrowsOutCardinal />

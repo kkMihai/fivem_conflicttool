@@ -286,7 +286,7 @@ export default function App() {
         const c = s.conflicts.find(x => x.id === s.selectedId)
         if (d.key === 'hideui') useStore.setState({ uiHidden: !s.uiHidden })
         else if (d.key === 'tab') s.cycle(1)
-        else if (d.key === 'keep' && c) s.decideEntity(c, 'keep')
+        else if (d.key === 'keep' && c) s.keepEntity(c)
         else if (d.key === 'remove' && c && c.entity) s.decideEntity(c, 'remove')
         else if (d.key === 'undo') s.undo()
         else if (d.key === 'mode') s.enterMode(d.value)

@@ -114,7 +114,8 @@ interface StoreState {
     filtered: () => Conflict[]
     select: (id: string | null, teleport?: boolean) => void
     cycle: (dir: 1 | -1) => void
-    decideEntity: (c: Conflict, action: 'keep' | 'remove' | 'move', extra?: any) => Promise<void>
+    decideEntity: (c: Conflict, action: 'keep' | 'remove' | 'move' | 'original', extra?: any) => Promise<void>
+    keepEntity: (c: Conflict) => Promise<void>
     decideAsset: (c: Conflict, keepResource?: string) => void
     startMove: (c: Conflict) => Promise<void>
     endMove: (commit: boolean) => Promise<void>
@@ -125,6 +126,8 @@ interface StoreState {
 }
 
 const catColorIdx = (c: Conflict): number => (c.vanilla ? 2 : 0)
+
+export const keepsOriginal = (c: Conflict, preview: 'a' | 'b' | null): boolean => c.kind === 'entity-moved' && !!c.target && preview === 'b'
 
 let markerIds = new Set<string>()
 let noticeTimer: ReturnType<typeof setTimeout> | null = null
@@ -626,6 +629,7 @@ export const useStore = create<StoreState>((set, get) => ({
 
     decideEntity: async (c, action, extra) => {
         if (!c.entity) return
+        if (action === 'original' && !c.target) action = 'keep'
         if (get().transform && action !== 'move') {
             await get().endMove(false)
         }
@@ -639,9 +643,13 @@ export const useStore = create<StoreState>((set, get) => ({
             get().pushHistory({ id: c.id, label: c.title, action: 'keep' })
             return
         }
+        const restore = action === 'original'
         const entPos = c.entity.pos
         const entModel = c.entity.model
         const live = c.target ?? { pos: entPos, rot: c.entity.rot, model: entModel }
+        const next: { pos: [number, number, number]; rot: [number, number, number, number] } | null = restore
+            ? { pos: entPos, rot: c.entity.rot }
+            : extra?.new ?? null
         const spots = c.target
             ? [
                   { model: c.target.model, pos: c.target.pos },
@@ -651,12 +659,12 @@ export const useStore = create<StoreState>((set, get) => ({
         const targets = c.target
             ? [
                   c.resources[0]?.rel ? { resource: c.resources[0].name, rel: c.resources[0].rel, from: c.target.pos, model: c.target.model } : null,
-                  c.resources[1]?.rel ? { resource: c.resources[1].name, rel: c.resources[1].rel, from: entPos, model: entModel } : null
+                  !restore && c.resources[1]?.rel ? { resource: c.resources[1].name, rel: c.resources[1].rel, from: entPos, model: entModel } : null
               ].filter(Boolean)
             : c.resources.filter(r => r.rel).map(r => ({ resource: r.name, rel: r.rel, from: entPos, model: entModel }))
         fetchNui('decide', {
             type: 'entity',
-            action,
+            action: restore ? 'move' : action,
             conflictId: c.id,
             archetype: c.entity.name,
             hash: live.model,
@@ -666,14 +674,18 @@ export const useStore = create<StoreState>((set, get) => ({
             targets,
             spots,
             original: { pos: live.pos, rot: live.rot },
-            new: extra?.new ?? null,
+            new: next,
             hideRadius: c.entity.radius
         })
         set(s => ({
-            resolved: { ...s.resolved, [c.id]: action === 'remove' ? 'removed · applied live' : 'moved · applied live' },
-            movedTo: action === 'move' && extra?.new ? { ...s.movedTo, [c.id]: { pos: extra.new.pos, rot: extra.new.rot } } : s.movedTo
+            resolved: { ...s.resolved, [c.id]: action === 'remove' ? 'removed · applied live' : restore ? 'original spot · applied live' : 'moved · applied live' },
+            movedTo: next ? { ...s.movedTo, [c.id]: { pos: next.pos, rot: next.rot } } : s.movedTo
         }))
-        get().pushHistory({ id: c.id, label: c.title, action })
+        get().pushHistory({ id: c.id, label: c.title, action: restore ? 'keep original' : action })
+    },
+
+    keepEntity: async c => {
+        await get().decideEntity(c, keepsOriginal(c, get().preview) ? 'original' : 'keep')
     },
 
     decideAsset: (c, keepResource) => {

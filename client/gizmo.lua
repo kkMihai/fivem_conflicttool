@@ -159,6 +159,9 @@ local function applyEntityMatrix(entity, view)
         tx, ty, tz = snap(tx), snap(ty), snap(tz)
     end
     SetEntityMatrix(entity, x1, y1, z1, x2, y2, z2, x3, y3, z3, tx, ty, tz)
+    local qx, qy, qz, qw = GetEntityQuaternion(entity)
+    SetEntityCoordsNoOffset(entity, tx, ty, tz, false, false, false)
+    SetEntityQuaternion(entity, qx, qy, qz, qw)
 end
 
 function GZ.SetMode(mode)

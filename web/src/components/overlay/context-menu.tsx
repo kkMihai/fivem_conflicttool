@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { ArrowsInLineHorizontal, ArrowsOutCardinal, Check, Cube, Eye, EyeSlash, Swap, Trash } from '@phosphor-icons/react'
 import { cn, OCCL_DOTS } from '@/lib/utils'
-import { useStore } from '@/store/use-store'
+import { keepsOriginal, useStore } from '@/store/use-store'
 
 interface ItemProps {
     icon: React.ReactNode
@@ -46,6 +46,8 @@ export function ContextMenu() {
     const editCollisionBound = useStore(s => s.editCollisionBound)
     const moveWholeCollision = useStore(s => s.moveWholeCollision)
     const decideEntity = useStore(s => s.decideEntity)
+    const keepEntity = useStore(s => s.keepEntity)
+    const preview = useStore(s => s.preview)
     const decideAsset = useStore(s => s.decideAsset)
     const startMove = useStore(s => s.startMove)
     const toggleIgnore = useStore(s => s.toggleIgnore)
@@ -162,7 +164,7 @@ export function ContextMenu() {
                     )}
                     {!box && !bound && c.entity && (
                         <>
-                            <Item icon={<Check />} label="Keep" onClick={run(() => decideEntity(c, 'keep'))} />
+                            <Item icon={<Check />} label={keepsOriginal(c, preview) ? 'Keep original' : 'Keep'} onClick={run(() => keepEntity(c))} />
                             <Item icon={<ArrowsOutCardinal />} label="Move" onClick={run(() => startMove(c))} />
                             <Item icon={<Trash />} label="Remove" danger onClick={run(() => decideEntity(c, 'remove'))} />
                         </>
