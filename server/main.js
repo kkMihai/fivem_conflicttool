@@ -180,7 +180,8 @@ onNet('kk_ct:decide', d => {
         }
         broadcastDecisions()
     } else if (d.type === 'asset' && d.file && d.loser) {
-        KKCT.decisions.addAsset({ ...d, by })
+        KKCT.decisions.dropGroup([d.file])
+        KKCT.decisions.addAsset({ ...d, merge: null, by })
     }
     emitNet('kk_ct:decisionsMeta', src, KKCT.decisions.meta())
     pushState(src)
@@ -349,6 +350,59 @@ onNet('kk_ct:mergeOccluders', d => {
     }
 })
 
+function mergeFailed(src, d, message) {
+    emitNet('kk_ct:mergePreviewData', src, {
+        conflictId: d && typeof d.conflictId === 'string' ? d.conflictId : null,
+        policy: d && d.policy === 'union' ? 'union' : 'three-way',
+        file: d && typeof d.file === 'string' ? d.file : null,
+        base: d && d.base && typeof d.base.resource === 'string' && typeof d.base.rel === 'string' ? d.base : null,
+        ok: false,
+        reason: message
+    })
+}
+
+onNet('kk_ct:mergePreview', d => {
+    const src = source
+    if (!allowed(src)) return
+    try {
+        if (!d || typeof d !== 'object') {
+            mergeFailed(src, null, 'that merge request was empty, run a fresh scan')
+            return
+        }
+        const out = KKCT.merge.preview(d.conflictId, d.file, d.policy, d.base)
+        emitNet('kk_ct:mergePreviewData', src, out.payload)
+    } catch (e) {
+        console.log(`[fivem_conflicttool] merge preview failed: ${e.stack || e.message}`)
+        mergeFailed(src, d, 'the merge preview failed on the server, check the server console')
+    }
+})
+
+onNet('kk_ct:mergeQueue', d => {
+    const src = source
+    if (!allowed(src)) return
+    try {
+        if (!d || typeof d !== 'object') {
+            mergeFailed(src, null, 'that merge request was empty, run a fresh scan')
+            emitNet('kk_ct:notice', src, 'that merge request was empty, run a fresh scan')
+        } else {
+            const out = KKCT.merge.queue(d.conflictId, d.file, d.policy, d.digest, GetPlayerName(src), d.base)
+            emitNet('kk_ct:mergePreviewData', src, out.payload)
+            if (out.ok) {
+                const others = `${out.losers} other ${out.losers === 1 ? 'copy' : 'copies'}`
+                emitNet('kk_ct:notice', src, `Queued a merge of ${out.files.join(' and ')} into ${out.targets.join(' and ')}. Resolve writes it and disables ${others}.`)
+                emitNet('kk_ct:decisionsMeta', src, KKCT.decisions.meta())
+            } else {
+                emitNet('kk_ct:notice', src, out.reason)
+            }
+        }
+    } catch (e) {
+        console.log(`[fivem_conflicttool] merge queue failed: ${e.stack || e.message}`)
+        mergeFailed(src, d, 'the merge failed on the server, check the server console')
+        emitNet('kk_ct:notice', src, 'the merge failed on the server, check the server console')
+    }
+    pushState(src)
+})
+
 function pushCollAfterUndo(src, rec) {
     try {
         if (!rec || !rec.loser) return
@@ -389,10 +443,12 @@ onNet('kk_ct:autoResolve', scope => {
     const by = GetPlayerName(src)
     let count = 0
     const ids = []
+    const merging = new Set(KKCT.decisions.pendingAssets().filter(a => a.merge && a.merge.group).map(a => a.file))
     KKCT.decisions.bulk(() => {
         for (const c of scan.conflicts) {
-            if (!c.autoRes || c.ignored) continue
+            if (!c.autoRes || c.ignored || c.merge) continue
             if (scope !== 'all' && c.autoRes !== scope) continue
+            if (c.autoRes === 'assets' && merging.has(c.file)) continue
             ids.push(c.id)
             if (c.autoRes === 'assets' && c.suggested && c.suggested.losers) {
                 const winner = c.resources[c.resources.length - 1]

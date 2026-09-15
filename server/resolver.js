@@ -283,10 +283,25 @@ KKCT.resolver = (() => {
         return [...groups.values()]
     }
 
+    function groupMerges(list) {
+        const groups = new Map()
+        for (const d of list) {
+            if (d.action !== 'merge' || !d.merge || !d.merge.group) continue
+            let g = groups.get(d.merge.group)
+            if (!g) {
+                g = { group: d.merge.group, records: [] }
+                groups.set(d.merge.group, g)
+            }
+            g.records.push(d)
+        }
+        return [...groups.values()]
+    }
+
     async function apply(progress) {
         const allPending = KKCT.decisions.pendingAssets()
-        const pending = allPending.filter(d => d.action !== 'ybn')
+        const pending = allPending.filter(d => d.action !== 'ybn' && d.action !== 'merge')
         const ybnJobs = groupYbn(allPending)
+        const mergeJobs = groupMerges(allPending)
         const fresh = KKCT.decisions.entities().filter(e => (e.state || 'live') === 'live' && !e.reported)
         const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
         let bundleId = stamp
@@ -336,12 +351,42 @@ KKCT.resolver = (() => {
         }
 
         const entityJobs = KKCT.decisions.entityFileJobs()
-        const totalSteps = pending.length + ybnJobs.length + entityJobs.length
+        const totalSteps = mergeJobs.length + pending.length + ybnJobs.length + entityJobs.length
+        const failedGroups = new Set()
+        let mergedFiles = 0
+
+        for (const job of mergeJobs) {
+            step++
+            const head = job.records.find(d => Array.isArray(d.merge.keys)) || job.records[0]
+            const label = Array.isArray(head.merge.keys) ? head.merge.keys.join(' + ') : head.file
+            progress({ step, total: totalSteps, label })
+            try {
+                const done = KKCT.merge.run(job.records, { resourceRoot, ensureBackup, writeBack, recordMove })
+                mergedFiles += done.files
+                for (const d of job.records) {
+                    d.state = 'applied'
+                    d.bundleId = bundleId
+                    if (d.conflictId) appliedIds.add(d.conflictId)
+                    for (const id of Array.isArray(d.merge.ids) ? d.merge.ids : []) appliedIds.add(id)
+                }
+            } catch (e) {
+                failedGroups.add(job.group)
+                errors.push({ file: label, resource: [...new Set(job.records.map(d => (d.loser ? d.loser.resource : '?')))].join(', '), msg: e.message })
+            }
+            await new Promise(r => setImmediate(r))
+        }
+
+        const mergedGroups = new Set(KKCT.decisions.assets()
+            .filter(a => a.action === 'merge' && a.state === 'applied' && a.merge && a.merge.group)
+            .map(a => a.merge.group))
 
         for (const d of pending) {
             step++
             progress({ step, total: totalSteps, label: d.file })
             try {
+                if (d.merge && d.merge.group && !mergedGroups.has(d.merge.group)) {
+                    throw new Error(failedGroups.has(d.merge.group) ? 'skipped because the merge failed' : 'skipped because its merge is not queued')
+                }
                 const rel = d.loser.relPath || d.loser.rel
                 const b = ensureBackup(d.loser.resource, rel)
                 if (b.first && d.loser.sha1 && b.sha !== d.loser.sha1) {
@@ -374,6 +419,12 @@ KKCT.resolver = (() => {
             step++
             progress({ step, total: totalSteps, label: job.file })
             try {
+                const dependencies = new Set(job.decisions.filter(d => d.merge && d.merge.group).map(d => d.merge.group))
+                for (const group of dependencies) {
+                    if (!mergedGroups.has(group)) {
+                        throw new Error(failedGroups.has(group) ? 'skipped because the collision merge failed' : 'skipped because its collision merge is not queued')
+                    }
+                }
                 const b = ensureBackup(job.resource, job.rel)
                 const stamped = job.decisions.find(d => d.loser && d.loser.sha1)
                 if (b.first && stamped && b.sha !== stamped.loser.sha1) {
@@ -451,10 +502,11 @@ KKCT.resolver = (() => {
         const summary = {
             removed: fresh.filter(e => e.action === 'remove').length,
             moved: fresh.filter(e => e.action === 'move').length,
-            buried: moves.filter(m => m.kind === 'edit' && !m.clip && !m.move && !m.ybn).length,
+            buried: moves.filter(m => m.kind === 'edit' && !m.clip && !m.move && !m.ybn && !m.merge).length,
             clipped: moves.filter(m => m.kind === 'edit' && m.clip).length,
             collision: moves.filter(m => m.ybn).length,
             filedMoves: moves.filter(m => m.move).length,
+            merged: mergedFiles,
             assets: moves.filter(m => m.kind !== 'edit').length,
             files: moves.length,
             errors: errors.length

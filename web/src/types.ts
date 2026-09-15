@@ -42,8 +42,58 @@ export interface Conflict {
     target: { pos: [number, number, number]; rot: [number, number, number, number]; model: number } | null
     near: { label: string; dist: number }[] | null
     boxes?: OccluderBox[] | null
+    merge?: ConflictMerge | null
     explain: { summary: string; note: string }
     suggested: { action: string; losers: { resource: string; rel: string; sha1: string }[] }
+}
+
+export type MergePolicy = 'three-way' | 'union'
+
+export interface MergeBase {
+    resource: string
+    rel: string
+}
+
+export interface ConflictMerge {
+    kind: 'lodlights' | 'entities' | 'ybn' | 'ydr' | 'ydd' | 'yft'
+    ids: string[]
+    copies: number
+    lod?: string
+    dist?: string
+    structural?: boolean
+    entityKeys?: string[]
+}
+
+export interface MergeCopy {
+    resource: string
+    rel?: string
+    total: number
+    shared: number
+    onlyHere: number
+    removed: number
+    lost: number
+    excluded: boolean
+    target: boolean
+    warnings: string[]
+}
+
+export interface MergePreview {
+    state: 'running' | 'done'
+    conflictId: string
+    policy: MergePolicy
+    file?: string
+    base?: MergeBase | null
+    kind?: 'lodlights' | 'entities' | 'ybn' | 'ydr' | 'ydd' | 'yft'
+    effective?: MergePolicy
+    ok?: boolean
+    reason?: string
+    files?: { file: string; target: string; total: number }[]
+    ids?: string[]
+    copies?: MergeCopy[]
+    totals?: { merged: number; added: number; removed: number; changed: number; conflicts: number; unresolved: number; skipped?: number }
+    warnings?: string[]
+    digest?: string
+    queued?: boolean
 }
 
 export interface ScanMeta {
@@ -91,7 +141,7 @@ export interface DecisionsMeta {
 export interface Backup {
     id: string
     createdAt: string
-    summary: { removed: number; moved: number; buried?: number; clipped?: number; collision?: number; filedMoves?: number; assets: number; files: number; errors?: number }
+    summary: { removed: number; moved: number; buried?: number; clipped?: number; collision?: number; filedMoves?: number; merged?: number; assets: number; files: number; errors?: number }
     files: number
     resources: string[]
     restored: boolean
@@ -215,7 +265,7 @@ export interface ToolState {
     decisions: DecisionsMeta
     backups: Backup[]
     scanning: boolean
-    queued?: { assets: string[]; entities: string[]; entityFiles?: string[] }
+    queued?: { assets: string[]; entities: string[]; entityFiles?: string[]; merges?: string[] }
     version?: VersionInfo
 }
 

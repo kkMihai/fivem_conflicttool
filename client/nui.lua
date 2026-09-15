@@ -184,6 +184,20 @@ RegisterNUICallback('mergeOccluders', function(data, cb)
     end
 end)
 
+RegisterNUICallback('mergePreview', function(data, cb)
+    cb(true)
+    if data and data.file then
+        TriggerServerEvent('kk_ct:mergePreview', data)
+    end
+end)
+
+RegisterNUICallback('mergeQueue', function(data, cb)
+    cb(true)
+    if data and data.file then
+        TriggerServerEvent('kk_ct:mergeQueue', data)
+    end
+end)
+
 RegisterNUICallback('clipOccluder', function(data, cb)
     cb(true)
     if data then
@@ -508,6 +522,10 @@ end)
 
 RegisterNetEvent('kk_ct:occlPreview', function(data)
     nuiSend('occlPreview', data)
+end)
+
+RegisterNetEvent('kk_ct:mergePreviewData', function(p)
+    nuiSend('mergePreview', p)
 end)
 
 RegisterNetEvent('kk_ct:autoResolved', function(ids)

@@ -12,7 +12,7 @@ import { ContextMenu } from '@/components/overlay/context-menu'
 import { Kbd } from '@/components/ui/kbd'
 import { decodeChunks, fetchNui, isEnvBrowser, useNuiEvent } from '@/lib/nui'
 import { useStore } from '@/store/use-store'
-import type { CollEditLive, CollVerify, CollisionBound, CollisionData, Conflict, FaceDataInfo, FaceSelState, ScanPayload, ToolState, VersionInfo } from '@/types'
+import type { CollEditLive, CollVerify, CollisionBound, CollisionData, Conflict, FaceDataInfo, FaceSelState, MergePreview, ScanPayload, ToolState, VersionInfo } from '@/types'
 import { CheckCircle, CursorClick, Warning } from '@phosphor-icons/react'
 
 export default function App() {
@@ -97,9 +97,13 @@ export default function App() {
         if (d.queued) {
             resolved = { ...prev }
             const entityFiles = d.queued.entityFiles ?? []
-            const queuedSet = new Set([...d.queued.assets, ...d.queued.entities, ...entityFiles])
+            const merges = d.queued.merges ?? []
+            const queuedSet = new Set([...d.queued.assets, ...d.queued.entities, ...entityFiles, ...merges])
             for (const id of d.queued.assets) {
                 if (!resolved[id] || resolved[id].endsWith('applied live')) resolved[id] = 'queued · needs Resolve + restart'
+            }
+            for (const id of merges) {
+                if (!resolved[id] || resolved[id].startsWith('queued') || resolved[id].endsWith('applied live')) resolved[id] = 'queued · merge · needs Resolve + restart'
             }
             for (const id of d.queued.entities) {
                 if (!resolved[id]) resolved[id] = 'applied live'
@@ -253,14 +257,26 @@ export default function App() {
 
     useNuiEvent<CollVerify>('collVerify', d => useStore.setState({ collVerify: d ?? null }))
 
+    useNuiEvent<Omit<MergePreview, 'state'>>('mergePreview', d => {
+        const store = useStore.getState()
+        const sel = store.selectedId
+        if (!d || !sel) return
+        if (d.conflictId !== sel && !(d.ids ?? []).includes(sel)) return
+        useStore.setState({ mergePreview: { ...d, state: 'done' } })
+        if (d.queued && d.kind === 'ybn' && d.base) {
+            const conflict = store.conflicts.find(c => c.id === sel)
+            if (conflict) store.requestCollision(conflict, d.base.resource, d.base.rel)
+        }
+    })
+
     useNuiEvent<CollisionData>('collisionBounds', d => {
         if (!d || !d.inspect) return
         useStore.setState({ collision: d, collResource: d.resource })
     })
 
-    useNuiEvent<{ conflictId: string | null; file: string; resource: string; bounds: CollisionBound[] }>('collPreview', d => {
+    useNuiEvent<{ conflictId: string | null; file: string; resource: string; rel?: string; bounds: CollisionBound[] }>('collPreview', d => {
         const s = useStore.getState()
-        if (!d?.bounds || !s.collision || s.collision.file !== d.file) return
+        if (!d?.bounds || !s.collision || s.collision.file !== d.file || s.collision.resource !== d.resource || (d.rel && s.collision.rel !== d.rel)) return
         useStore.setState({ collision: { ...s.collision, inspect: { ...s.collision.inspect, bounds: d.bounds } } })
         if (d.conflictId) {
             const target = s.conflicts.find(c => c.id === d.conflictId)

@@ -1,4 +1,4 @@
-import type { Conflict, ResourceWeight, ScanMeta, ToolState, AssetKind, CollisionData } from '@/types'
+import type { Conflict, ResourceWeight, ScanMeta, ToolState, AssetKind, CollisionData, MergeBase, MergeCopy, MergePolicy, MergePreview } from '@/types'
 
 const mockMat = (slot: number, type: number, name: string, flags = 0) => ({
     slot, type, name, flags, procId: 0, roomId: 0, pedDensity: 0, colorIndex: 0, unk4: 0
@@ -157,6 +157,82 @@ export const mockConflicts: Conflict[] = [
         },
         suggested: { action: 'keep', losers: [] }
     },
+    ...(['vw_lodlights_medium012.ymap', 'vw_distlodlights_medium012.ymap'] as const).map((file, i): Conflict => ({
+        id: `c_asset_${200 + i}`,
+        akind: 'map',
+        key: `dup|${file}|fm_mapdata+garage_mlo+maps_downtown+racetrack+street_pack`,
+        isNew: true,
+        cat: 'asset',
+        sev: 'medium',
+        kind: 'dup-file',
+        title: file,
+        sub: 'maps_downtown vs fm_mapdata',
+        file,
+        badges: ['5 scripts · 5 versions', 'stale LOD', 'mergeable'],
+        vanilla: true,
+        pos: [-512.4, -1210.7, 22.1],
+        autoRes: null,
+        resources: [
+            { name: 'maps_downtown', rel: `stream/lod/${file}`, size: i === 0 ? 1840 : 61200, sha1: '0c1d2e3f', status: 'overridden' },
+            { name: 'garage_mlo', rel: `stream/${file}`, size: i === 0 ? 70512 : 61200, sha1: '4a5b6c7d', status: 'overridden' },
+            { name: 'racetrack', rel: `stream/maps/${file}`, size: i === 0 ? 70160 : 60880, sha1: '8e9fa0b1', status: 'overridden' },
+            { name: 'street_pack', rel: `stream/${file}`, size: i === 0 ? 70896 : 61552, sha1: 'c2d3e4f5', status: 'overridden' },
+            { name: 'fm_mapdata', rel: `stream/${file}`, size: i === 0 ? 70256 : 60976, sha1: '16273849', status: 'registers last · active' }
+        ],
+        entity: null,
+        target: null,
+        near: null,
+        merge: {
+            kind: 'lodlights',
+            ids: ['c_asset_200', 'c_asset_201'],
+            copies: 5,
+            lod: 'vw_lodlights_medium012.ymap',
+            dist: 'vw_distlodlights_medium012.ymap'
+        },
+        explain: {
+            summary: `5 resources ship different versions of ${file}. Map files override by name, so only the script loaded last takes effect.`,
+            note: 'Lights removed or added by the other copies are lost in game.'
+        },
+        suggested: {
+            action: 'disable',
+            losers: ['maps_downtown', 'garage_mlo', 'racetrack', 'street_pack'].map(r => ({ resource: r, rel: `stream/${file}`, sha1: '0c1d2e3f' }))
+        }
+    })),
+    {
+        id: 'c_asset_202',
+        akind: 'map',
+        key: 'dup|lr_sc1_rd_long_0.ymap|maps_downtown+racetrack+street_pack',
+        cat: 'asset',
+        sev: 'medium',
+        kind: 'dup-file',
+        title: 'lr_sc1_rd_long_0.ymap',
+        sub: 'street_pack vs maps_downtown',
+        file: 'lr_sc1_rd_long_0.ymap',
+        badges: ['3 scripts · 3 versions', 'mergeable'],
+        vanilla: true,
+        pos: [-148.2, -1562.9, 34.6],
+        autoRes: null,
+        resources: [
+            { name: 'street_pack', rel: 'stream/lr_sc1_rd_long_0.ymap', size: 58432, sha1: '5f6e7d8c', status: 'overridden' },
+            { name: 'racetrack', rel: 'stream/lr_sc1_rd_long_0.ymap', size: 56720, sha1: '9b8a7968', status: 'overridden' },
+            { name: 'maps_downtown', rel: 'stream/lr_sc1_rd_long_0.ymap', size: 56720, sha1: '57463524', status: 'registers last · active' }
+        ],
+        entity: null,
+        target: null,
+        near: null,
+        merge: { kind: 'entities', ids: ['c_asset_202'], copies: 3, structural: false },
+        explain: {
+            summary: '3 resources ship different versions of lr_sc1_rd_long_0.ymap. Map files override by name, so only the script loaded last takes effect.',
+            note: 'Props placed or removed by the other copies are lost in game.'
+        },
+        suggested: {
+            action: 'disable',
+            losers: [
+                { resource: 'street_pack', rel: 'stream/lr_sc1_rd_long_0.ymap', sha1: '5f6e7d8c' },
+                { resource: 'racetrack', rel: 'stream/lr_sc1_rd_long_0.ymap', sha1: '9b8a7968' }
+            ]
+        }
+    },
     ...Array.from({ length: 60 }, (_, i): Conflict => ({
         id: `c_prop_${i + 10}`,
         akind: (i % 3 === 0 ? 'vehicle' : i % 3 === 1 ? 'ped' : 'prop') as AssetKind,
@@ -221,6 +297,72 @@ export const mockConflicts: Conflict[] = [
         suggested: { action: 'disable', losers: [{ resource: 'phone_shop_mlo', rel: 'stream/ss1_12_night.ydr', sha1: '99887766' }] }
     }))
 ]
+
+const mockCopy = (resource: string, total: number, shared: number, onlyHere: number, removed: number, lost: number, extra: Partial<MergeCopy> = {}): MergeCopy => ({
+    resource, total, shared, onlyHere, removed, lost, excluded: false, target: false, warnings: [], ...extra
+})
+
+export function mockMergePreview(c: Conflict, policy: MergePolicy, base?: MergeBase): MergePreview {
+    const m = c.merge
+    if (!m) return { state: 'done', conflictId: c.id, policy, base, ok: false, reason: 'this conflict has nothing to merge' }
+    const effective: MergePolicy = policy === 'three-way' && m.copies < 3 ? 'union' : policy
+    const majority = effective === 'three-way'
+    const markBase = (copies: MergeCopy[], fallback: string) => {
+        const resource = base?.resource ?? fallback
+        return copies.map(copy => ({ ...copy, target: copy.resource === resource }))
+    }
+    if (m.kind === 'lodlights') {
+        const merged = majority ? 2180 : 2199
+        const lod = m.lod ?? c.file
+        const dist = m.dist ?? c.file
+        return {
+            state: 'done',
+            conflictId: c.id,
+            policy,
+            base,
+            file: c.file,
+            kind: 'lodlights',
+            effective,
+            ok: true,
+            files: [
+                { file: lod, target: base?.resource ?? 'fm_mapdata', total: merged },
+                { file: dist, target: base?.resource ?? 'fm_mapdata', total: merged }
+            ],
+            ids: m.ids,
+            copies: markBase([
+                mockCopy('maps_downtown', 2179, 0, 0, 0, 0, { excluded: true, warnings: ['lod has 0 lights but dist has 2179'] }),
+                mockCopy('garage_mlo', 2187, 2160, 8, 0, 0),
+                mockCopy('racetrack', 2168, 2160, 0, 11, 2),
+                mockCopy('street_pack', 2191, 2160, 12, 0, 1),
+                mockCopy('fm_mapdata', 2171, 2160, 0, 8, 0)
+            ], 'fm_mapdata'),
+            totals: { merged, added: 20, removed: majority ? 19 : 0, changed: 3, conflicts: 3, unresolved: majority ? 0 : 19, skipped: 2179 },
+            warnings: [],
+            digest: `mock_lights_${policy}`
+        }
+    }
+    const merged = majority ? 412 : 426
+    return {
+        state: 'done',
+        conflictId: c.id,
+        policy,
+        base,
+        file: c.file,
+        kind: 'entities',
+        effective,
+        ok: true,
+        files: [{ file: c.file, target: base?.resource ?? 'maps_downtown', total: merged }],
+        ids: m.ids,
+        copies: markBase([
+            mockCopy('street_pack', 426, 406, 6, 0, 0),
+            mockCopy('racetrack', 406, 406, 0, 14, 1),
+            mockCopy('maps_downtown', 406, 406, 0, 14, 0)
+        ], 'maps_downtown'),
+        totals: { merged, added: 6, removed: majority ? 14 : 0, changed: 9, conflicts: 1, unresolved: majority ? 0 : 14 },
+        warnings: ['car generators differ between copies and are not merged, the active copy keeps its own'],
+        digest: `mock_props_${policy}`
+    }
+}
 
 export const mockScanMeta: ScanMeta = {
     scanId: 's_mock',

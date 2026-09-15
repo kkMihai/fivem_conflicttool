@@ -45,38 +45,11 @@ KKCT.conflicts = (() => {
         return Math.abs(a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3])
     }
 
-    const HIDDEN_DROP = 200
-    const HIDDEN_DEEP = -5000
-    const HIDDEN_SCREEN = -250
-    const NEIGHBOUR_R2 = 150 * 150
+    const hiddenEntity = (e, entities) => KKCT.ymap.hidden(e, entities)
 
-    const hiddenCache = new WeakMap()
-
-    function hiddenEntity(e, entities) {
-        if (e.p[2] < HIDDEN_DEEP) return true
-        if (e.p[2] >= HIDDEN_SCREEN) return false
-        if (!entities) return false
-        let seen = hiddenCache.get(entities)
-        if (!seen) {
-            seen = new Map()
-            hiddenCache.set(entities, seen)
-        }
-        const key = `${e.a}_${e.g}_${rpos(e.p)}`
-        const memo = seen.get(key)
-        if (memo !== undefined) return memo
-        const near = []
-        for (const o of entities) {
-            if (o === e || o.mlo) continue
-            const dx = o.p[0] - e.p[0], dy = o.p[1] - e.p[1]
-            if (dx * dx + dy * dy <= NEIGHBOUR_R2) near.push(o.p[2])
-        }
-        let result = false
-        if (near.length) {
-            near.sort((a, b) => a - b)
-            result = near[Math.floor(near.length / 2)] - e.p[2] > HIDDEN_DROP
-        }
-        seen.set(key, result)
-        return result
+    function loadOrder(entries) {
+        return [...entries].sort((a, b) =>
+            ((a.inStream ? 1 : 0) - (b.inStream ? 1 : 0)) || byResource(a, b) || (a.order - b.order))
     }
 
     function dist3(a, b) {
@@ -104,9 +77,27 @@ KKCT.conflicts = (() => {
             }
         }
 
+        const baseKey = new Map()
+        const childrenOf = new Map()
         for (const [key, entries] of index) {
-            const sorted = [...entries].sort((a, b) =>
-                ((a.inStream ? 1 : 0) - (b.inStream ? 1 : 0)) || byResource(a, b) || (a.order - b.order))
+            if (!key.endsWith('.ymap')) continue
+            const h = KKCT.joaat(key.slice(0, -5))
+            if (!baseKey.has(h)) baseKey.set(h, key)
+            for (const entry of entries) {
+                const parent = entry.parsed ? entry.parsed.parent : 0
+                if (!parent) continue
+                let list = childrenOf.get(parent)
+                if (!list) {
+                    list = []
+                    childrenOf.set(parent, list)
+                }
+                if (!list.includes(key)) list.push(key)
+            }
+        }
+        const dupByKey = new Map()
+
+        for (const [key, entries] of index) {
+            const sorted = loadOrder(entries)
             const winner = sorted[sorted.length - 1]
             if (winner.ext === 'ymap' && winner.parsed) {
                 for (const b of winner.parsed.boxOccluders || []) {
@@ -173,7 +164,7 @@ KKCT.conflicts = (() => {
                     ? 'Both copies sit in one resource, so which one the game picks is decided when the resource is packed, not by load order.'
                     : 'The game registers streaming files in resource name order and the last one overrides the rest, so the copy shown as active is the one players get. Restarting a resource while the server runs re-registers it and hands it the win instead.'
 
-            out.push({
+            const conflict = {
                 id: nid(cat === 'coll' ? 'c_coll' : cat === 'occl' ? 'c_occl' : 'c_asset'),
                 key: `dup|${key}|${sorted.map(s => s.resource).sort().join('+')}`,
                 cat,
@@ -192,7 +183,9 @@ KKCT.conflicts = (() => {
                     size: s.size,
                     sha1: short(s.sha1),
                     fullSha1: s.sha1,
-                    status: i === sorted.length - 1
+                    status: s.parseError
+                        ? 'unreadable'
+                        : i === sorted.length - 1
                         ? 'registers last · active'
                         : (winner.inStream && !s.inStream
                             ? 'never loads · outside stream'
@@ -206,7 +199,30 @@ KKCT.conflicts = (() => {
                     : null,
                 explain: { summary, note },
                 suggested: { action: 'disable', losers: losers.map(l => ({ resource: l.resource, rel: l.rel, sha1: l.sha1 })) }
-            })
+            }
+            out.push(conflict)
+            dupByKey.set(key, { conflict, identical })
+
+            if (ext === 'ymap' && !identical && cat !== 'occl') {
+                const live = sorted.filter(e => e.inStream && !e.parseError && e.parsed && e.parsed.entities.length)
+                const copies = new Set(live.map(e => e.resource)).size
+                if (copies >= 2) {
+                    const structural = sorted.some(e => e.parsed && e.parsed.lodParents > 0) || childrenOf.has(KKCT.joaat(key.replace(/\.[^.]+$/, '')))
+                    conflict.merge = { kind: 'entities', ids: [conflict.id], copies, structural }
+                    conflict.badges.push('mergeable')
+                    conflict.autoRes = null
+                }
+            }
+
+            if (['ybn', 'ydr', 'ydd', 'yft'].includes(ext) && !identical) {
+                const live = sorted.filter(e => e.inStream && !e.parseError)
+                const copies = live.length
+                if (copies >= 2) {
+                    conflict.merge = { kind: ext, ids: [conflict.id], copies }
+                    conflict.badges.push('mergeable')
+                    conflict.autoRes = null
+                }
+            }
 
             if (ext === 'ymap' && !identical && winner.parsed) {
                 for (const loser of losers) {
@@ -509,6 +525,43 @@ KKCT.conflicts = (() => {
             })
         }
 
+        const liveByResource = key => {
+            const byRes = new Map()
+            for (const e of loadOrder(index.get(key) || [])) {
+                if (e.inStream && !e.parseError && e.parsed && e.parsed.lights) byRes.set(e.resource, e)
+            }
+            return byRes
+        }
+        for (const [key, entries] of index) {
+            if (!key.endsWith('.ymap')) continue
+            const lodCopy = loadOrder(entries).reverse().find(e => e.parsed && e.parsed.parent &&
+                ((e.parsed.lights && e.parsed.lights.lod > 0) || (e.parsed.contentFlags & 128)))
+            if (!lodCopy) continue
+            const distKey = baseKey.get(lodCopy.parsed.parent)
+            if (!distKey || distKey === key) continue
+            const lodDup = dupByKey.get(key)
+            const distDup = dupByKey.get(distKey)
+            if (!(lodDup && !lodDup.identical) && !(distDup && !distDup.identical)) continue
+            const distLive = liveByResource(distKey)
+            let usable = 0
+            for (const [res, l] of liveByResource(key)) {
+                const d = distLive.get(res)
+                if (d && l.parsed.lights.lod === d.parsed.lights.dist) usable++
+            }
+            if (usable < 2) continue
+            const ids = [lodDup && lodDup.conflict.id, distDup && distDup.conflict.id].filter(Boolean)
+            const entityKeys = [
+                lodDup && lodDup.conflict.merge && lodDup.conflict.merge.kind === 'entities' ? key : null,
+                distDup && distDup.conflict.merge && distDup.conflict.merge.kind === 'entities' ? distKey : null
+            ].filter(Boolean)
+            for (const dup of [lodDup, distDup]) {
+                if (!dup) continue
+                dup.conflict.merge = { kind: 'lodlights', lod: key, dist: distKey, ids: [...ids], copies: usable, entityKeys: [...entityKeys] }
+                if (!dup.conflict.badges.includes('mergeable')) dup.conflict.badges.push('mergeable')
+                dup.conflict.autoRes = null
+            }
+        }
+
         const kindRank = { vehicle: 0, ped: 1, weapon: 2, map: 3, prop: 4, other: 5 }
         for (const c of out) {
             let best = 'other'
@@ -526,6 +579,6 @@ KKCT.conflicts = (() => {
         return out
     }
 
-    return { detect, loadVanilla }
+    return { detect, loadVanilla, loadOrder }
 })()
 })()

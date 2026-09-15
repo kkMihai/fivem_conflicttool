@@ -1,5 +1,6 @@
 import { ArrowsOutCardinal, Check, Crosshair, Cube, Eye, EyeSlash, Swap, Trash, Warning, X } from '@phosphor-icons/react'
 import { CollisionBounds } from '@/components/collision/collision-bounds'
+import { MergePanel } from '@/components/conflicts/merge-panel'
 import { cn, OCCL_DOTS } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -318,6 +319,8 @@ export function ConflictDetail() {
                         })}
                     </div>
                 )}
+
+                {c.kind === 'dup-file' && c.merge && <MergePanel c={c} />}
 
                 {c.kind === 'dup-file' && c.resources.length > 1 && !c.entity && (
                     <div className="mx-3 mt-2 space-y-1">

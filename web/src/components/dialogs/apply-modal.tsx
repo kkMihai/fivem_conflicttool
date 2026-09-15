@@ -44,6 +44,7 @@ export function ApplyModal() {
                                         {r.summary.buried ? ` · buried ${r.summary.buried}` : ''}
                                         {r.summary.clipped ? ` · shrunk ${r.summary.clipped}` : ''}
                                         {r.summary.collision ? ` · collision ${r.summary.collision}` : ''}
+                                        {r.summary.merged ? ` · merged ${r.summary.merged}` : ''}
                                         {r.summary.filedMoves ? ` · moved in file ${r.summary.filedMoves}` : ''} · assets {r.summary.assets ?? 0} file(s)
                                     </span>
                                 )}

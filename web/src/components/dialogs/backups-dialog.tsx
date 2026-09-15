@@ -52,7 +52,8 @@ export function BackupsDialog() {
                                     </Button>
                                 </div>
                                 <div className="mt-1 text-3xs text-muted-foreground">
-                                    removed {b.summary.removed} · moved {b.summary.moved} · assets {b.summary.assets} · {b.files} file(s)
+                                    removed {b.summary.removed} · moved {b.summary.moved}
+                                    {b.summary.merged ? ` · merged ${b.summary.merged}` : ''} · assets {b.summary.assets} · {b.files} file(s)
                                 </div>
                                 <div className="mt-1 truncate text-3xs font-mono text-muted-foreground">
                                     {b.resources.join(' · ')}

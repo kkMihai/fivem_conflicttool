@@ -10,6 +10,7 @@ In-game map conflict scanner and resolver for FiveM. It scans every started reso
 - **Conflict types**: duplicate files across resources, props removed, moved or re-modelled between versions of a ymap, double placements of the same prop, overlapping box occluders, duplicate collision files, and archetypes defined more than once across ytyp files. Duplicate files carry badges for vanilla overrides, LOD distance disagreements and stale LOD data.
 - **Auto resolve**: queues the safe fixes in one click, such as identical duplicate copies and double-placed props.
 - **Manual resolve**: keep, move or remove each conflict, with in-world preview of both sides.
+- **File merge**: combines YMAP props and LOD lights, YBN bounds, YDD drawables, and YDR or YFT drawable models. YBN merge keeps the selected base exact by default so intentional MLO openings remain open, with Keep all available for a full bound union.
 - **Occluder tools**: shrink one box until the overlap clears, remove a single box, or merge a whole cluster into one volume.
 - **In-game occluder editor**: move, rotate and resize a box with the gizmo, or right click one face to extrude just that side.
 - **In-game collision editor**: move and rotate a collision bound with the gizmo, or move a whole `.ybn` as one, with the mesh following the drag live.

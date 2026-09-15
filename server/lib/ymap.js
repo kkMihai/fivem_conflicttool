@@ -20,6 +20,20 @@ KKCT.ymap = (() => {
         return m > 0 ? (b.iCosZ ?? 0) / m : 0
     }
 
+    function arrayLen(meta, soa, pick) {
+        if (!soa) return 0
+        const info = meta.structures.get(soa.__struct)
+        if (!info) return 0
+        const entry = info.entries.find(pick)
+        if (!entry) return 0
+        const off = soa.__abs + entry.offset
+        if (off < 0 || off + 10 > meta.data.length) return 0
+        const v = meta.data.readUInt32LE(off)
+        const bi = (v & 0xfff) - 1
+        if (!v || bi < 0 || bi >= meta.blocks.length) return 0
+        return meta.data.readUInt16LE(off + 8)
+    }
+
     function parse(buf) {
         const { data } = KKCT.rsc7.parse(buf)
         const meta = KKCT.meta.parse(data)
@@ -28,8 +42,10 @@ KKCT.ymap = (() => {
 
         const mloHash = KKCT.joaatCase('CMloInstanceDef')
         const entities = []
+        let lodParents = 0
         for (const e of Array.isArray(md.entities) ? md.entities : []) {
             if (!e || !e.position) continue
+            if ((e.numChildren ?? 0) > 0) lodParents++
             const mlo = e.__struct === mloHash
             let r = [0, 0, 0, 1]
             if (e.rotation) {
@@ -84,8 +100,14 @@ KKCT.ymap = (() => {
             carGens.push({ p: c.position.map(round3), m: (c.carModel ?? 0) >>> 0 })
         }
 
-        const distLod = md.DistantLODLightsSOA
-        const lodLights = md.LODLightsSOA
+        const distSoa = md.DistantLODLightsSOA
+        const lodSoa = md.LODLightsSOA
+        const positionHash = KKCT.joaatCase('position')
+        const lights = {
+            lod: arrayLen(meta, lodSoa, e => e.offset === 72 && e.type === meta.T.ARRAY),
+            dist: arrayLen(meta, distSoa, e => e.nameHash === positionHash && e.type === meta.T.ARRAY),
+            street: (distSoa && distSoa.numStreetLights) || 0
+        }
 
         return {
             name: (md.name ?? 0) >>> 0,
@@ -99,9 +121,47 @@ KKCT.ymap = (() => {
             occludeModels,
             carGens,
             physDicts: (md.physicsDictionaries || []).map(h => h >>> 0),
-            distLodLights: !!(distLod && Array.isArray(distLod.position) && distLod.position.length),
-            lodLights: !!(lodLights && Array.isArray(lodLights.position) && lodLights.position.length)
+            distLodLights: lights.dist > 0,
+            lodLights: lights.lod > 0,
+            lodParents,
+            lights
         }
+    }
+
+    const rpos = p => `${Math.round(p[0] * 4)}_${Math.round(p[1] * 4)}_${Math.round(p[2] * 4)}`
+
+    const HIDDEN_DROP = 200
+    const HIDDEN_DEEP = -5000
+    const HIDDEN_SCREEN = -250
+    const NEIGHBOUR_R2 = 150 * 150
+
+    const hiddenCache = new WeakMap()
+
+    function hidden(e, entities) {
+        if (e.p[2] < HIDDEN_DEEP) return true
+        if (e.p[2] >= HIDDEN_SCREEN) return false
+        if (!entities) return false
+        let seen = hiddenCache.get(entities)
+        if (!seen) {
+            seen = new Map()
+            hiddenCache.set(entities, seen)
+        }
+        const key = `${e.a}_${e.g}_${rpos(e.p)}`
+        const memo = seen.get(key)
+        if (memo !== undefined) return memo
+        const near = []
+        for (const o of entities) {
+            if (o === e || o.mlo) continue
+            const dx = o.p[0] - e.p[0], dy = o.p[1] - e.p[1]
+            if (dx * dx + dy * dy <= NEIGHBOUR_R2) near.push(o.p[2])
+        }
+        let result = false
+        if (near.length) {
+            near.sort((a, b) => a - b)
+            result = near[Math.floor(near.length / 2)] - e.p[2] > HIDDEN_DROP
+        }
+        seen.set(key, result)
+        return result
     }
 
     const EPS = 0.02
@@ -188,6 +248,6 @@ KKCT.ymap = (() => {
         return { buf: KKCT.rsc7.write(res, data), applied: applied.length, missed: missed.length }
     }
 
-    return { parse, patch }
+    return { parse, patch, hidden }
 })()
 })()

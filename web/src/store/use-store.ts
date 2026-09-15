@@ -1,11 +1,12 @@
 import { create } from 'zustand'
-import type { AssetKind, Backup, Category, CollEditLive, CollEditState, CollVerify, CollisionData, Conflict, DecisionsMeta, FaceDataInfo, FaceSelState, HistoryEntry, ResourceWeight, ScanMeta, TransformState, VersionInfo } from '@/types'
+import type { AssetKind, Backup, Category, CollEditLive, CollEditState, CollVerify, CollisionData, Conflict, DecisionsMeta, FaceDataInfo, FaceSelState, HistoryEntry, MergeBase, MergePolicy, MergePreview, ResourceWeight, ScanMeta, TransformState, VersionInfo } from '@/types'
 import { fetchNui, isEnvBrowser } from '@/lib/nui'
 import { partitionAssetCopies } from '@/lib/asset-decision'
 import { extOf } from '@/lib/utils'
-import { mockCollColors, mockCollFlags, mockCollMats, mockCollision, mockConflicts, mockState, mockWeights } from '@/lib/mock'
+import { mockCollColors, mockCollFlags, mockCollMats, mockCollision, mockConflicts, mockMergePreview, mockState, mockWeights } from '@/lib/mock'
 
 export type Tab = 'all' | Category
+export type ItemFilter = 'conflicts' | 'editable' | 'both'
 
 interface StoreState {
     visible: boolean
@@ -68,6 +69,11 @@ interface StoreState {
     clipOccluder: (c: Conflict, target: number) => void
     mergeOccluders: (c: Conflict) => void
     zeroOccluder: (c: Conflict, target: number) => void
+    mergePolicy: MergePolicy
+    mergePreview: MergePreview | null
+    setMergePolicy: (p: MergePolicy) => void
+    previewMerge: (c: Conflict, base: MergeBase) => void
+    queueMerge: (c: Conflict) => void
     occlEdit: { id: string; target: number } | null
     occlEditLive: { l: number; w: number; h: number; face?: string | null } | null
     collision: CollisionData | null
@@ -91,7 +97,7 @@ interface StoreState {
     faceSelectOp: (op: string, value?: number) => void
     applyFaceMaterial: (type: number, flags?: number) => void
     faceMove: (op: 'begin' | 'apply' | 'cancel') => Promise<void>
-    requestCollision: (c: Conflict, resource?: string) => void
+    requestCollision: (c: Conflict, resource?: string, rel?: string) => void
     editCollisionBound: (c: Conflict, bi: number) => Promise<void>
     moveWholeCollision: (c: Conflict) => Promise<void>
     collEditApply: () => void
@@ -252,6 +258,39 @@ export const useStore = create<StoreState>((set, get) => ({
         fetchNui('zeroOccluder', { conflictId: c.id, boxes, target })
     },
 
+    mergePolicy: 'three-way',
+    mergePreview: null,
+
+    setMergePolicy: p => set({ mergePolicy: p }),
+
+    previewMerge: (c, base) => {
+        if (!c.merge) return
+        const policy = get().mergePolicy
+        if (isEnvBrowser()) {
+            set({ mergePreview: mockMergePreview(c, policy, base) })
+            return
+        }
+        set({ mergePreview: { state: 'running', conflictId: c.id, policy, base } })
+        fetchNui('mergePreview', { conflictId: c.id, file: c.file, policy, base })
+    },
+
+    queueMerge: c => {
+        const p = get().mergePreview
+        if (!c.merge || !p || p.state !== 'done' || !p.ok || !p.digest || p.queued) return
+        if (p.conflictId !== c.id && !(p.ids ?? []).includes(c.id)) return
+        if (p.policy !== get().mergePolicy || get().resolved[c.id]) return
+        if (isEnvBrowser()) {
+            const ids = c.merge.ids
+            set(s => {
+                const resolved = { ...s.resolved }
+                for (const id of ids) resolved[id] = 'queued · merge · needs Resolve + restart'
+                return { mergePreview: { ...p, queued: true }, resolved }
+            })
+            return
+        }
+        fetchNui('mergeQueue', { conflictId: c.id, file: c.file, policy: p.policy, digest: p.digest, base: p.base })
+    },
+
     occlEdit: null,
     occlEditLive: null,
     collision: isEnvBrowser() ? mockCollision : null,
@@ -371,14 +410,18 @@ export const useStore = create<StoreState>((set, get) => ({
         if (op === 'begin' && res && res.ok === false && res.reason) get().setNotice(res.reason)
     },
 
-    requestCollision: (c, resource) => {
-        const keep = resource ?? get().collResource ?? c.resources[c.resources.length - 1]?.name ?? null
+    requestCollision: (c, resource, rel) => {
+        const selected = rel
+            ? c.resources.find(copy => copy.name === resource && copy.rel === rel)
+            : c.resources.find(copy => copy.name === resource) ?? c.resources[c.resources.length - 1]
+        const keep = selected?.name ?? get().collResource ?? null
+        const keepRel = selected?.rel ?? null
         if (isEnvBrowser()) {
-            set({ collision: { ...mockCollision, resource: keep ?? mockCollision.resource }, collResource: keep })
+            set({ collision: { ...mockCollision, resource: keep ?? mockCollision.resource, rel: keepRel ?? mockCollision.rel }, collResource: keep })
             return
         }
         set({ collision: null, collResource: keep, collEdit: null, collEditLive: null, collVerify: null })
-        fetchNui('requestCollisionBounds', { file: c.file, resource: keep })
+        fetchNui('requestCollisionBounds', { file: c.file, resource: keep, rel: keepRel })
     },
 
     editCollisionBound: async (c, bi) => {

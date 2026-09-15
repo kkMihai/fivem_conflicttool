@@ -123,13 +123,16 @@ KKCT.decisions = (() => {
         const rec = {
             id,
             conflictId: d.conflictId || null,
-            action: d.action === 'bury' || d.action === 'clip' || d.action === 'ybn' ? d.action : 'disable',
+            action: d.action === 'merge' && d.merge && d.merge.group
+                ? 'merge'
+                : d.action === 'bury' || d.action === 'clip' || d.action === 'ybn' ? d.action : 'disable',
             file: d.file,
             loser: d.loser,
             winner: d.winner || null,
             entity: d.entity || null,
             box: d.box || null,
             ybn: d.ybn || null,
+            merge: d.merge && d.merge.group ? d.merge : null,
             state: 'pending',
             bundleId: null,
             createdAt: new Date().toISOString(),
@@ -140,6 +143,7 @@ KKCT.decisions = (() => {
             a.action === rec.action &&
             a.loser && rec.loser &&
             a.loser.resource === rec.loser.resource &&
+            (a.loser.relPath || a.loser.rel) === (rec.loser.relPath || rec.loser.rel) &&
             a.state === 'pending' &&
             (rec.action !== 'clip' || (a.box && rec.box && a.box.index === rec.box.index)) &&
             (rec.action !== 'ybn' || (a.ybn && rec.ybn && a.ybn.key === rec.ybn.key))
@@ -188,6 +192,35 @@ KKCT.decisions = (() => {
         return Math.abs(a.pos[0] - b.pos[0]) < 0.01 && Math.abs(a.pos[1] - b.pos[1]) < 0.01 && Math.abs(a.pos[2] - b.pos[2]) < 0.01
     }
 
+    function fileSet(files) {
+        return new Set((Array.isArray(files) ? files : []).filter(f => typeof f === 'string').map(f => f.toLowerCase()))
+    }
+
+    function hits(a, set) {
+        if (typeof a.file === 'string' && set.has(a.file.toLowerCase())) return true
+        return !!(a.merge && Array.isArray(a.merge.keys) && a.merge.keys.some(k => typeof k === 'string' && set.has(k.toLowerCase())))
+    }
+
+    function dropGroup(files) {
+        const set = fileSet(files)
+        const groups = new Set(data.assets
+            .filter(a => a.state === 'pending' && a.merge && a.merge.group && hits(a, set))
+            .map(a => a.merge.group))
+        if (!groups.size) return 0
+        const before = data.assets.length
+        data.assets = data.assets.filter(a => !(a.state === 'pending' && a.merge && groups.has(a.merge.group)))
+        save()
+        return before - data.assets.length
+    }
+
+    function dropDisables(files) {
+        const set = fileSet(files)
+        const before = data.assets.length
+        data.assets = data.assets.filter(a => !(a.state === 'pending' && a.action === 'disable' && !(a.merge && a.merge.group) && hits(a, set)))
+        if (data.assets.length !== before) save()
+        return before - data.assets.length
+    }
+
     function clearPending() {
         const n = data.assets.filter(a => a.state === 'pending').length
         data.assets = data.assets.filter(a => a.state !== 'pending')
@@ -204,10 +237,16 @@ KKCT.decisions = (() => {
         removeEntityByConflict,
         undo,
         clearPending,
+        dropGroup,
+        dropDisables,
         queuedConflictIds: () => ({
             assets: data.assets.filter(a => a.state === 'pending' && a.conflictId && a.action !== 'ybn').map(a => a.conflictId),
             entities: data.entities.filter(e => e.conflictId && entState(e) === 'live').map(e => e.conflictId),
-            entityFiles: data.entities.filter(e => e.conflictId && entityFileJob(e)).map(e => e.conflictId)
+            entityFiles: data.entities.filter(e => e.conflictId && entityFileJob(e)).map(e => e.conflictId),
+            merges: [...new Set(data.assets
+                .filter(a => a.state === 'pending' && a.action === 'merge' && a.merge)
+                .flatMap(a => [a.conflictId, ...(Array.isArray(a.merge.ids) ? a.merge.ids : [])])
+                .filter(Boolean))]
         }),
         get: () => data,
         entities: () => data.entities,
