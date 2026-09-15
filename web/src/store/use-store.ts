@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { AssetKind, Backup, Category, CollEditLive, CollEditState, CollVerify, CollisionData, Conflict, DecisionsMeta, FaceDataInfo, FaceSelState, HistoryEntry, ResourceWeight, ScanMeta, TransformState, VersionInfo } from '@/types'
 import { fetchNui, isEnvBrowser } from '@/lib/nui'
+import { partitionAssetCopies } from '@/lib/asset-decision'
 import { extOf } from '@/lib/utils'
 import { mockCollColors, mockCollFlags, mockCollMats, mockCollision, mockConflicts, mockState, mockWeights } from '@/lib/mock'
 
@@ -116,7 +117,7 @@ interface StoreState {
     cycle: (dir: 1 | -1) => void
     decideEntity: (c: Conflict, action: 'keep' | 'remove' | 'move' | 'original', extra?: any) => Promise<void>
     keepEntity: (c: Conflict) => Promise<void>
-    decideAsset: (c: Conflict, keepResource?: string) => void
+    decideAsset: (c: Conflict, keepIndex?: number) => void
     startMove: (c: Conflict) => Promise<void>
     endMove: (commit: boolean) => Promise<void>
     enterMode: (mode: 'review' | 'translate' | 'rotate') => Promise<void>
@@ -688,10 +689,10 @@ export const useStore = create<StoreState>((set, get) => ({
         await get().decideEntity(c, keepsOriginal(c, get().preview) ? 'original' : 'keep')
     },
 
-    decideAsset: (c, keepResource) => {
-        const keeper = keepResource ?? c.resources[c.resources.length - 1]?.name
-        const winner = c.resources.find(r => r.name === keeper)
-        const losers = c.resources.filter(r => r.name !== keeper)
+    decideAsset: (c, keepIndex) => {
+        const selected = partitionAssetCopies(c.resources, keepIndex ?? c.resources.length - 1)
+        if (!selected) return
+        const { winner, losers } = selected
         for (const l of losers) {
             fetchNui('decide', {
                 type: 'asset',
@@ -702,6 +703,7 @@ export const useStore = create<StoreState>((set, get) => ({
                 winner: winner ? { resource: winner.name, sha1: winner.fullSha1 } : null
             })
         }
+        const keeper = c.resources.some(r => r !== winner && r.name === winner.name) ? winner.rel : winner.name
         set(s => ({ resolved: { ...s.resolved, [c.id]: `queued · keep ${keeper} · applies on Resolve` } }))
         get().pushHistory({ id: c.id, label: c.file, action: `keep ${keeper}` })
     },

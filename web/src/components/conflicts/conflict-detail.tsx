@@ -329,9 +329,12 @@ export function ConflictDetail() {
                                 size="sm"
                                 className="w-full justify-start"
                                 disabled={!!resolved[c.id]}
-                                onClick={() => decideAsset(c, r.name)}
+                                onClick={() => decideAsset(c, i)}
                             >
-                                <span className="truncate">keep {r.name}</span>
+                                <span className="truncate">
+                                    keep {r.name}
+                                    {c.resources.some((other, j) => j !== i && other.name === r.name) && ` · ${r.rel}`}
+                                </span>
                             </Button>
                         ))}
                     </div>
