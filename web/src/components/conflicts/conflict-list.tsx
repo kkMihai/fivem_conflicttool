@@ -1,11 +1,11 @@
 import { useRef } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { CaretDown, Car, Files, FunnelSimple, MagnifyingGlass, X } from '@phosphor-icons/react'
+import { CaretDown, Car, Check, Files, FunnelSimple, MagnifyingGlass, X } from '@phosphor-icons/react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { ConflictRow } from '@/components/conflicts/conflict-row'
-import { useStore, type Tab } from '@/store/use-store'
+import { useStore, type ItemFilter, type Tab } from '@/store/use-store'
 import type { AssetKind } from '@/types'
 import { cn, extOf } from '@/lib/utils'
 
@@ -26,6 +26,12 @@ const TABS: { id: Tab; label: string }[] = [
     { id: 'asset', label: 'Asset' }
 ]
 
+const ITEM_FILTERS: { id: ItemFilter; label: string }[] = [
+    { id: 'conflicts', label: 'Conflicts only' },
+    { id: 'editable', label: 'Editable stream files only' },
+    { id: 'both', label: 'Conflicts and editable files' }
+]
+
 export function ConflictList() {
     const tab = useStore(s => s.tab)
     const setTab = useStore(s => s.setTab)
@@ -37,6 +43,8 @@ export function ConflictList() {
     const select = useStore(s => s.select)
     const resourceFilter = useStore(s => s.resourceFilter)
     const setResourceFilter = useStore(s => s.setResourceFilter)
+    const itemFilter = useStore(s => s.itemFilter)
+    const setItemFilter = useStore(s => s.setItemFilter)
     const hiddenExts = useStore(s => s.hiddenExts)
     const toggleExt = useStore(s => s.toggleExt)
     const showAllExts = useStore(s => s.showAllExts)
@@ -82,6 +90,21 @@ export function ConflictList() {
     const kinds = KIND_LABELS.filter(([k]) => (kindCounts.get(k) ?? 0) > 0)
     const hiddenKindList = kinds.filter(([k]) => hiddenKinds[k])
     const counts = scanMeta?.counts
+    const editableCounts = conflicts.reduce((sum, conflict) => {
+        if ((conflict.kind !== 'collision-file' && conflict.kind !== 'occlusion-file') || conflict.ignored || conflict.hidden) return sum
+        sum.all++
+        sum[conflict.cat]++
+        return sum
+    }, { all: 0, coll: 0, occl: 0, prop: 0, asset: 0 })
+    const shownCounts = counts && itemFilter !== 'conflicts'
+        ? {
+            all: itemFilter === 'editable' ? editableCounts.all : counts.all + editableCounts.all,
+            coll: itemFilter === 'editable' ? editableCounts.coll : counts.coll + editableCounts.coll,
+            occl: itemFilter === 'editable' ? editableCounts.occl : counts.occl + editableCounts.occl,
+            prop: itemFilter === 'editable' ? editableCounts.prop : counts.prop + editableCounts.prop,
+            asset: itemFilter === 'editable' ? editableCounts.asset : counts.asset + editableCounts.asset
+        }
+        : counts
 
     return (
         <div className="flex min-h-0 flex-1 flex-col">
@@ -101,15 +124,22 @@ export function ConflictList() {
                         <Button
                             variant="ghost"
                             size="sm"
-                            title="Filter by script"
-                            aria-label={resourceFilter ? `Filter by script: ${resourceFilter}` : 'Filter by script'}
-                            className={cn('shrink-0', resourceFilter && 'text-primary')}
+                            title="Filter by item or script"
+                            aria-label={`Filter by item: ${ITEM_FILTERS.find(item => item.id === itemFilter)?.label}${resourceFilter ? `, script: ${resourceFilter}` : ''}`}
+                            className={cn('shrink-0', (resourceFilter || itemFilter !== 'conflicts') && 'text-primary')}
                         >
                             <FunnelSimple aria-hidden="true" />
                             <CaretDown className="h-3 w-3" aria-hidden="true" />
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="max-h-72 overflow-y-auto">
+                        {ITEM_FILTERS.map(item => (
+                            <DropdownMenuItem key={item.id} onClick={() => setItemFilter(item.id)}>
+                                <Check className={cn('h-3 w-3', itemFilter !== item.id && 'opacity-0')} aria-hidden="true" />
+                                {item.label}
+                            </DropdownMenuItem>
+                        ))}
+                        <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={() => setResourceFilter(null)}>All scripts</DropdownMenuItem>
                         <DropdownMenuSeparator />
                         {resources.map(r => (
@@ -183,7 +213,7 @@ export function ConflictList() {
                     type="button"
                     onClick={showAllKinds}
                     aria-label={`Show all asset kinds, ${hiddenKindList.length} hidden`}
-                    className="mx-3 mt-1.5 flex min-h-6 items-center gap-1 rounded-md border border-primary/40 bg-primary/10 px-2 py-1 text-3xs text-primary transition-colors duration-150 hover:bg-primary/20 cursor-pointer"
+                    className="mx-3 mt-1.5 flex min-h-6 items-center gap-1 rounded-md border border-border bg-accent px-2 py-1 text-3xs text-accent-foreground transition-colors duration-150 hover:bg-secondary cursor-pointer"
                 >
                     <span className="truncate">hiding: {hiddenKindList.map(([, l]) => l.toLowerCase()).join(', ')}</span>
                     <span className="ml-auto pl-1" aria-hidden="true">×</span>
@@ -211,6 +241,17 @@ export function ConflictList() {
                     <span className="ml-auto" aria-hidden="true">×</span>
                 </button>
             )}
+            {itemFilter !== 'conflicts' && (
+                <button
+                    type="button"
+                    onClick={() => setItemFilter('conflicts')}
+                    aria-label="Show conflicts only"
+                    className="mx-3 mt-1.5 flex min-h-6 items-center gap-1 rounded-md border border-primary/40 bg-primary/10 px-2 py-1 text-3xs text-primary transition-colors duration-150 hover:bg-primary/20 cursor-pointer"
+                >
+                    <span className="truncate">showing: {ITEM_FILTERS.find(item => item.id === itemFilter)?.label.toLowerCase()}</span>
+                    <span className="ml-auto" aria-hidden="true">×</span>
+                </button>
+            )}
             <div className="mx-3 mt-2 flex gap-0.5 rounded-lg border border-border bg-background p-0.5" role="group" aria-label="Filter conflicts by category">
                 {TABS.map(t => (
                     <button
@@ -226,8 +267,8 @@ export function ConflictList() {
                         )}
                     >
                         {t.label}
-                        {counts && t.id !== 'all' && <span className="opacity-85"> {counts[t.id]}</span>}
-                        {counts && t.id === 'all' && <span className="opacity-85"> {counts.all}</span>}
+                        {shownCounts && t.id !== 'all' && <span className="opacity-85"> {shownCounts[t.id]}</span>}
+                        {shownCounts && t.id === 'all' && <span className="opacity-85"> {shownCounts.all}</span>}
                     </button>
                 ))}
             </div>

@@ -162,6 +162,7 @@ function DockFooter() {
     useStore(s => s.hiddenExts)
     useStore(s => s.hiddenKinds)
     useStore(s => s.resourceFilter)
+    useStore(s => s.itemFilter)
     const list = useStore(s => s.filtered)()
     const idx = list.findIndex(c => c.id === selectedId)
     const [shortcutsOpen, setShortcutsOpen] = useState(false)

@@ -29,6 +29,7 @@ interface StoreState {
     hiddenKinds: Record<string, true>
     preview: 'a' | 'b' | null
     resourceFilter: string | null
+    itemFilter: ItemFilter
     selectedId: string | null
     hoverModel: number | null
     hoverId: string | null
@@ -119,6 +120,7 @@ interface StoreState {
     bulkDecide: (action: 'keep' | 'remove') => void
     setPreview: (c: Conflict | null, which: 'a' | 'b' | null) => void
     setResourceFilter: (r: string | null) => void
+    setItemFilter: (filter: ItemFilter) => void
     filtered: () => Conflict[]
     select: (id: string | null, teleport?: boolean) => void
     cycle: (dir: 1 | -1) => void
@@ -164,6 +166,7 @@ export const useStore = create<StoreState>((set, get) => ({
     hiddenKinds: {},
     preview: null,
     resourceFilter: null,
+    itemFilter: 'conflicts',
     selectedId: null,
     hoverModel: null,
     hoverId: null,
@@ -618,10 +621,18 @@ export const useStore = create<StoreState>((set, get) => ({
         get().pushMarkers()
     },
 
+    setItemFilter: itemFilter => {
+        set({ itemFilter })
+        get().pushMarkers()
+    },
+
     filtered: () => {
-        const { conflicts, tab, search, showVanilla, showIgnored, showHidden, onlyNew, resourceFilter, hiddenExts, hiddenKinds } = get()
+        const { conflicts, tab, search, showVanilla, showIgnored, showHidden, onlyNew, resourceFilter, itemFilter, hiddenExts, hiddenKinds } = get()
         const q = search.trim().toLowerCase()
         return conflicts.filter(c => {
+            const editable = c.kind === 'collision-file' || c.kind === 'occlusion-file'
+            if (itemFilter === 'conflicts' && editable) return false
+            if (itemFilter === 'editable' && !editable) return false
             if (hiddenExts[extOf(c.file)]) return false
             if (hiddenKinds[c.akind ?? 'other']) return false
             if (tab !== 'all' && c.cat !== tab) return false
