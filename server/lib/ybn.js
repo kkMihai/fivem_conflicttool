@@ -48,11 +48,16 @@ KKCT.ybn = (() => {
         for (let i = 0; i < 16; i++) {
             m[i] = data.readFloatLE(off + i * 4)
         }
+        m[3] = 0
+        m[7] = 0
+        m[11] = 0
+        m[15] = 1
         return m
     }
 
     function writeMatrix(data, off, m) {
         for (let i = 0; i < 16; i++) {
+            if (i === 3 || i === 7 || i === 11 || i === 15) continue
             data.writeFloatLE(m[i], off + i * 4)
         }
     }
