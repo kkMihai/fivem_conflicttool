@@ -13,9 +13,9 @@ In-game map conflict scanner and resolver for FiveM. It scans every started reso
 - **File merge**: combines YMAP props and LOD lights, YBN bounds, YDD drawables, and YDR or YFT drawable models. YBN merge keeps the selected base exact by default so intentional MLO openings remain open, with Keep all available for a full bound union.
 - **Occluder tools**: shrink one box until the overlap clears, remove a single box, or merge a whole cluster into one volume.
 - **In-game occluder editor**: move, rotate and resize a box with the gizmo, or right click one face to extrude just that side.
-- **In-game collision editor**: move and rotate a collision bound with the gizmo, or move a whole `.ybn` as one, with the mesh following the drag live.
+- **In-game collision editor**: every readable `.ybn` in a stream folder is listed in the Collision tab, even without a conflict. Move and rotate a bound with the gizmo, or move the whole file as one, with the mesh following the drag live.
 - **Collision surfaces**: set any material slot from the full GTA V surface list, plus the sixteen collision flags such as see through, shoot through, walkable path and no navmesh.
-- **Face painting**: collision faces draw in their surface colour, the same colours Sollumz uses in Blender. Tap a face to select it, hold and sweep to paint an area, or grab every face sharing a surface, then set the selection to any surface.
+- **Face editing**: collision faces draw in their surface colour, the same colours Sollumz uses in Blender. Select faces to paint, move, rotate or remove them, including from a queued merged YBN before Resolve writes it.
 - **Face moving**: grab a face selection with the gizmo and move or rotate the geometry itself.
 - **In-place file edits**: buried props, occluder changes and collision edits rewrite only the fields that changed, so the resource keeps loading from its original file.
 - **World display**: every conflict gets a color-coded beam, collision meshes draw in red and box occluders in amber, and X-ray shows all of it through walls and terrain.
@@ -80,7 +80,7 @@ Edit puts the gizmo on a box, and right clicking a face extrudes just that side.
 
 ### Collision
 
-Each bound moves and rotates with the gizmo, or the whole file moves as one.
+Each bound moves and rotates with the gizmo, or the whole file moves as one. Selected faces can also be removed to clear doors, entrances and other blocked spaces after merging.
 
 ![Moving a collision bound](docs/showcase/collision-move-bound.png)
 
@@ -212,7 +212,7 @@ Entity decisions apply live for everyone. File changes take effect after a serve
 
 ### Collision
 
-Selecting a collision conflict adds a **Collision editor** tab beside the conflict details. It lists every bound as one row, and opening a row shows that bound's tools and surfaces. Each bound can be moved and rotated with the gizmo, or the whole file moved as one rigid unit. Each material slot shows its current surface and can be set from the full surface list, with the sixteen collision flags beside it.
+The **Collision** tab lists conflicts plus every readable `.ybn` found in a stream folder. Selecting one opens the collision editor. It lists every bound as one row, and opening a row shows that bound's tools and surfaces. Each bound can be moved and rotated with the gizmo, or the whole file moved as one rigid unit. Each material slot shows its current surface and can be set from the full surface list, with the sixteen collision flags beside it.
 
 **Paint faces** colours every face by its surface and turns the cursor into a brush. Tap a face to select it, hold and sweep to paint over an area, hold Ctrl to erase, and scroll to size the brush. Clicking a surface in the list selects every face using it. Pick a surface for the selection and it is written per face.
 

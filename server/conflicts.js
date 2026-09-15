@@ -562,6 +562,90 @@ KKCT.conflicts = (() => {
             }
         }
 
+        for (const [key, entries] of index) {
+            if (!key.endsWith('.ybn')) continue
+            const editable = loadOrder(entries).filter(e => e.inStream && !e.parseError && e.parsed)
+            for (const entry of editable) {
+                out.push({
+                    id: nid('c_edit_coll'),
+                    key: `edit-coll|${key}|${entry.resource}|${entry.rel}`,
+                    cat: 'coll',
+                    sev: 'cosmetic',
+                    kind: 'collision-file',
+                    title: key,
+                    sub: `${entry.resource} · editable streamed collision`,
+                    file: key,
+                    badges: ['editable streamed collision'],
+                    vanilla: vanillaSet ? vanillaSet.has(key) : false,
+                    pos: entry.parsed ? [(entry.parsed.bmin[0] + entry.parsed.bmax[0]) / 2, (entry.parsed.bmin[1] + entry.parsed.bmax[1]) / 2, (entry.parsed.bmin[2] + entry.parsed.bmax[2]) / 2] : null,
+                    autoRes: null,
+                    resources: [{
+                        name: entry.resource,
+                        rel: entry.rel,
+                        size: entry.size,
+                        sha1: short(entry.sha1),
+                        fullSha1: entry.sha1,
+                        status: 'streamed · editable'
+                    }],
+                    entity: null,
+                    target: null,
+                    near: null,
+                    boxes: null,
+                    explain: {
+                        summary: `${key} is a readable collision file in ${entry.resource}.`,
+                        note: 'Edits are written to this streamed file when queued changes are resolved.'
+                    },
+                    suggested: { action: 'none', losers: [] }
+                })
+            }
+        }
+
+        for (const [key, entries] of index) {
+            if (!key.endsWith('.ymap')) continue
+            const editable = loadOrder(entries).filter(e => e.inStream && !e.parseError && e.parsed && e.parsed.boxOccluders && e.parsed.boxOccluders.length)
+            for (const entry of editable) {
+                const all = entry.parsed.boxOccluders
+                const boxes = all.slice(0, 60).map(box => ({ ...box, resource: entry.resource, rel: entry.rel, file: key }))
+                const pos = [0, 0, 0]
+                for (const box of boxes) {
+                    pos[0] += box.c[0] / boxes.length
+                    pos[1] += box.c[1] / boxes.length
+                    pos[2] += box.c[2] / boxes.length
+                }
+                out.push({
+                    id: nid('c_edit_occl'),
+                    key: `edit-occl|${key}|${entry.resource}|${entry.rel}`,
+                    cat: 'occl',
+                    sev: 'cosmetic',
+                    kind: 'occlusion-file',
+                    title: key,
+                    sub: `${entry.resource} · editable streamed occlusion`,
+                    file: key,
+                    badges: [`${all.length} editable ${all.length === 1 ? 'occluder' : 'occluders'}`, ...(all.length > boxes.length ? [`${all.length - boxes.length} more not shown`] : [])],
+                    vanilla: vanillaSet ? vanillaSet.has(key) : false,
+                    pos: pos.map(v => Math.round(v * 100) / 100),
+                    autoRes: null,
+                    resources: [{
+                        name: entry.resource,
+                        rel: entry.rel,
+                        size: entry.size,
+                        sha1: short(entry.sha1),
+                        fullSha1: entry.sha1,
+                        status: 'streamed · editable'
+                    }],
+                    entity: null,
+                    target: null,
+                    near: null,
+                    boxes,
+                    explain: {
+                        summary: `${key} contains editable box occluders in ${entry.resource}.`,
+                        note: 'Edits are written to this streamed file when queued changes are resolved.'
+                    },
+                    suggested: { action: 'none', losers: [] }
+                })
+            }
+        }
+
         const kindRank = { vehicle: 0, ped: 1, weapon: 2, map: 3, prop: 4, other: 5 }
         for (const c of out) {
             let best = 'other'

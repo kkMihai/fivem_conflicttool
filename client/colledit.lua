@@ -298,6 +298,7 @@ function CE.Apply()
             conflictId = d.conflictId,
             file = d.file,
             resource = d.resource,
+            rel = d.rel,
             delta = { round3(cur[13] - orig[13]), round3(cur[14] - orig[14]), round3(cur[15] - orig[15]) }
         }
     else
@@ -310,6 +311,7 @@ function CE.Apply()
             conflictId = d.conflictId,
             file = d.file,
             resource = d.resource,
+            rel = d.rel,
             bi = d.bi,
             after = { m = m }
         }

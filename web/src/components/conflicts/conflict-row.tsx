@@ -33,6 +33,7 @@ export function ConflictRow({
     onClick: () => void
 }) {
     const c = conflict
+    const editableFile = c.kind === 'collision-file' || c.kind === 'occlusion-file'
     const state = [c.ignored ? 'ignored' : null, resolved ?? null].filter(Boolean).join(', ')
     return (
         <div
@@ -52,7 +53,9 @@ export function ConflictRow({
                     onClick()
                 }}
                 aria-pressed={selected}
-                aria-label={`${c.title}, ${c.sev} severity, ${c.resources[0]?.name ?? ''} versus ${c.resources[1]?.name ?? ''}${state ? `, ${state}` : ''}`}
+                aria-label={editableFile
+                    ? `${c.title}, editable stream file, ${c.resources[0]?.name ?? ''}`
+                    : `${c.title}, ${c.sev} severity, ${c.resources[0]?.name ?? ''} versus ${c.resources[1]?.name ?? ''}${state ? `, ${state}` : ''}`}
                 className="absolute inset-0 z-0 cursor-pointer rounded-lg focus-visible:-outline-offset-2"
             />
             <span aria-hidden="true" className={cn('absolute inset-y-0 left-0 z-10 w-0.75', railClass[c.cat])} />
@@ -90,11 +93,11 @@ export function ConflictRow({
                 </div>
                 <div className="mt-0.5 truncate text-3xs">
                     <span className="font-mono text-res-a">{c.resources[0]?.name}</span>
-                    <span className="text-muted-foreground"> vs </span>
-                    <span className="font-mono text-res-b">{c.resources[1]?.name}</span>
+                    {!editableFile && <span className="text-muted-foreground"> vs </span>}
+                    {!editableFile && <span className="font-mono text-res-b">{c.resources[1]?.name}</span>}
                 </div>
                 <div className="mt-0.5 flex items-center gap-1.5 text-3xs">
-                    <span className={cn('font-bold uppercase tracking-wide', sevClass[c.sev])}>{c.sev}</span>
+                    <span className={cn('font-bold uppercase tracking-wide', sevClass[c.sev])}>{editableFile ? 'editable' : c.sev}</span>
                     <span className="truncate text-muted-foreground">
                         {resolved ?? c.badges.filter(b => b !== 'FILES UNAVAILABLE').join(' · ')}
                     </span>

@@ -46,8 +46,11 @@ export function ConflictDetail() {
     if (!c) return null
     const pvLabels = c.entity ? previewLabels[c.kind] : undefined
     const keepOriginal = keepsOriginal(c, preview)
-    const tabbed = c.cat === 'coll'
-    const tab = tabbed ? detailTab : 'conflict'
+    const editableCollision = c.kind === 'collision-file'
+    const editableOcclusion = c.kind === 'occlusion-file'
+    const editableFile = editableCollision || editableOcclusion
+    const tabbed = c.cat === 'coll' && !editableCollision
+    const tab = editableCollision ? 'collision' : tabbed ? detailTab : 'conflict'
 
     return (
         <div
@@ -57,7 +60,7 @@ export function ConflictDetail() {
             aria-label={`Details for ${c.title}`}
         >
             <div className="flex items-center gap-1.5 border-b border-border px-3 py-2">
-                <Badge>{sevLabel[c.sev]}</Badge>
+                <Badge>{editableFile ? 'Editable' : sevLabel[c.sev]}</Badge>
                 <Badge variant={c.cat as any}>{catLabel[c.cat]}</Badge>
                 {c.vanilla && <Badge variant="success">Vanilla</Badge>}
                 {c.isNew && !c.ignored && <Badge>New</Badge>}
@@ -119,15 +122,15 @@ export function ConflictDetail() {
                     <div className="break-all font-mono text-sm font-bold">{c.title}</div>
                     <div className="mt-0.5 truncate text-3xs text-muted-foreground">
                         <span className="font-mono text-res-a">{c.resources[0]?.name}</span>
-                        {' → '}
-                        <span className="font-mono text-res-b">{c.resources[1]?.name}</span>
+                        {!editableFile && ' → '}
+                        {!editableFile && <span className="font-mono text-res-b">{c.resources[1]?.name}</span>}
                     </div>
                 </div>
 
                 <div className="mx-3 mt-2 rounded-lg border border-border bg-card p-2.5">
                     <div className="flex items-center gap-1.5 text-2xs font-bold">
                         <Warning className="h-3 w-3 text-cat-occl" aria-hidden="true" />
-                        Why this is a conflict
+                        {editableFile ? 'About this file' : 'Why this is a conflict'}
                     </div>
                     <p className="mt-1.5 text-2xs leading-relaxed text-secondary-foreground">{c.explain.summary}</p>
                     <div className="mt-2 space-y-1">
@@ -181,7 +184,7 @@ export function ConflictDetail() {
                     </div>
                 )}
 
-                <div className="mx-3 mt-2.5 grid grid-cols-3 gap-1.5">
+                {!editableFile && <div className="mx-3 mt-2.5 grid grid-cols-3 gap-1.5">
                     {c.entity ? (
                         <>
                             <Button
@@ -212,12 +215,12 @@ export function ConflictDetail() {
                             Keep last · disable rest
                         </Button>
                     )}
-                </div>
+                </div>}
 
-                {c.kind === 'occl-overlap' && (c.boxes?.length ?? 0) > 1 && (
+                {(c.kind === 'occl-overlap' || editableOcclusion) && (c.boxes?.length ?? 0) > 0 && (
                     <div className="mx-3 mt-2 space-y-1">
-                        <div className="text-3xs font-semibold text-muted-foreground">Or fix the volumes instead of deleting a file:</div>
-                        <Button
+                        <div className="text-3xs font-semibold text-muted-foreground">{editableOcclusion ? 'Edit the occluder volumes:' : 'Or fix the volumes instead of deleting a file:'}</div>
+                        {(c.boxes?.length ?? 0) > 1 && <Button
                             variant="secondary"
                             className="w-full justify-start"
                             disabled={!!occlEdit || c.boxes!.filter(b => b?.rel && !(b.l === 0 && b.w === 0 && b.h === 0)).length < 2}
@@ -226,7 +229,7 @@ export function ConflictDetail() {
                         >
                             <Swap />
                             Merge into one occluder
-                        </Button>
+                        </Button>}
                         {c.boxes!.map((box, i) => {
                             const gone = !!box && box.l === 0 && box.w === 0 && box.h === 0
                             const locked = !box?.rel || gone
@@ -296,7 +299,7 @@ export function ConflictDetail() {
                                             <Button
                                                 size="sm"
                                                 variant="secondary"
-                                                disabled={locked || !!occlEdit}
+                                                disabled={locked || !!occlEdit || c.boxes!.filter(b => b?.rel && !(b.l === 0 && b.w === 0 && b.h === 0)).length < 2}
                                                 onClick={() => clipOccluder(c, i)}
                                                 aria-label={`Shrink occluder ${i + 1} in ${box?.resource ?? ''} until the overlaps are gone`}
                                             >

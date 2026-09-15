@@ -464,6 +464,7 @@ function FS.ApplyMove()
         conflictId = FS.conflictId,
         file = FS.file,
         resource = FS.resource,
+        rel = FS.rel,
         bi = FS.bi,
         polys = picked,
         m = d
@@ -529,7 +530,7 @@ function FS.Reload()
     dirty = true
     FS.loading = true
     emit()
-    TriggerServerEvent('kk_ct:faceData', FS.file, FS.resource, FS.bi)
+    TriggerServerEvent('kk_ct:faceData', FS.file, FS.resource, FS.rel, FS.bi)
 end
 
 function FS.Repaint(slot, changed)
@@ -558,6 +559,7 @@ function FS.Start(d)
     FS.bi = d.bi
     FS.file = d.file
     FS.resource = d.resource
+    FS.rel = d.rel
     FS.conflictId = d.conflictId
     FS.loading = true
     FS.lastSlot = nil
@@ -573,7 +575,7 @@ function FS.Start(d)
     CV.DropEditCache()
     CV.drawOffset = nil
     CV.RebuildStatic()
-    TriggerServerEvent('kk_ct:faceData', d.file, d.resource, d.bi)
+    TriggerServerEvent('kk_ct:faceData', d.file, d.resource, d.rel, d.bi)
     emit()
     return true
 end
@@ -590,7 +592,7 @@ function FS.Stop()
     FS.loading = false
     FS.lastSlot = nil
     local repainted = dirty
-    local file, resource = FS.file, FS.resource
+    local file, resource, rel = FS.file, FS.resource, FS.rel
     world, mats, polys, sel, grid, centroids, chunks = nil, nil, nil, nil, nil, nil, nil
     moved, movedN, movedStamp = nil, 0, -1
     triCount = 0
@@ -600,7 +602,7 @@ function FS.Stop()
     CV.editBi = nil
     CV.RebuildStatic()
     if repainted and file then
-        TriggerServerEvent('kk_ct:collisionBounds', file, resource)
+        TriggerServerEvent('kk_ct:collisionBounds', file, resource, rel)
     end
     CT.NuiSend('faceSelDone')
 end

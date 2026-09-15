@@ -193,6 +193,7 @@ KKCT.resolver = (() => {
         const faces = new Map()
         const shift = [0, 0, 0]
         const movedBounds = new Set()
+        const removed = new Map()
         let shifted = false
         for (const e of edits) {
             if (e.kind === 'moveVerts') movedBounds.add(e.bi)
@@ -215,9 +216,16 @@ KKCT.resolver = (() => {
                     faces.set(e.bi, per)
                 }
                 for (const poly of e.polys) per.set(poly, e.slot)
+            } else if (e.kind === 'removeFaces') {
+                let per = removed.get(e.bi)
+                if (!per) {
+                    per = new Set()
+                    removed.set(e.bi, per)
+                }
+                for (const poly of e.polys) per.add(poly)
             }
         }
-        return { matrices, mats, faces, shift, shifted, movedBounds }
+        return { matrices, mats, faces, removed, shift, shifted, movedBounds }
     }
 
     function ybnInPlace(src, edits, backup) {
@@ -261,6 +269,9 @@ KKCT.resolver = (() => {
                 for (const [poly, slot] of per) {
                     if (poly >= usage.polyCount || usage.slotOf[poly] !== slot) return false
                 }
+            }
+            for (const [bi, polys] of want.removed) {
+                if (KKCT.ybn.removedFaces(raw, bi, [...polys]) !== polys.size) return false
             }
             return true
         })

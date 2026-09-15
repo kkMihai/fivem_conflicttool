@@ -228,7 +228,7 @@ end)
 RegisterNUICallback('requestCollisionBounds', function(data, cb)
     cb(true)
     if data and data.file then
-        TriggerServerEvent('kk_ct:collisionBounds', data.file, data.resource)
+        TriggerServerEvent('kk_ct:collisionBounds', data.file, data.resource, data.rel)
     end
 end)
 
@@ -328,10 +328,28 @@ RegisterNUICallback('applyFaceMaterial', function(data, cb)
         conflictId = CT.FaceSel.conflictId,
         file = CT.FaceSel.file,
         resource = CT.FaceSel.resource,
+        rel = CT.FaceSel.rel,
         bi = CT.FaceSel.bi,
         polys = polys,
         type = data.type,
         flags = data.flags
+    })
+end)
+
+RegisterNUICallback('removeSelectedFaces', function(_, cb)
+    cb(true)
+    local polys, n = CT.FaceSel.Selection()
+    if not polys or n == 0 then
+        CT.NuiSend('notice', 'No faces are selected.')
+        return
+    end
+    TriggerServerEvent('kk_ct:removeFaces', {
+        conflictId = CT.FaceSel.conflictId,
+        file = CT.FaceSel.file,
+        resource = CT.FaceSel.resource,
+        rel = CT.FaceSel.rel,
+        bi = CT.FaceSel.bi,
+        polys = polys
     })
 end)
 
@@ -377,7 +395,7 @@ end)
 RegisterNUICallback('requestCollisionGeom', function(data, cb)
     cb(true)
     if data and data.file then
-        TriggerServerEvent('kk_ct:collisionGeom', data.file, data.resource)
+        TriggerServerEvent('kk_ct:collisionGeom', data.file, data.resource, data.rel)
     end
 end)
 

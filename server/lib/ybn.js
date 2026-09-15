@@ -161,6 +161,7 @@ KKCT.ybn = (() => {
             const i2 = data.readUInt16LE(po + 6) & 0x7fff
             const i3 = data.readUInt16LE(po + 8) & 0x7fff
             if (i1 >= vertCount || i2 >= vertCount || i3 >= vertCount) continue
+            if (i1 === i2 || i1 === i3 || i2 === i3) continue
             if (meta) {
                 meta.polys.push(i)
                 meta.mats.push(pmiPtr >= 0 ? data.readUInt8(pmiPtr + i) : 0)
@@ -221,7 +222,12 @@ KKCT.ybn = (() => {
         if (polysPtr < 0 || !polyCount) return 0
         let n = 0
         for (let i = 0; i < polyCount; i++) {
-            if ((data.readUInt8(polysPtr + i * 16) & 7) === 0) n++
+            const po = polysPtr + i * 16
+            if ((data.readUInt8(po) & 7) !== 0) continue
+            const i1 = data.readUInt16LE(po + 4) & 0x7fff
+            const i2 = data.readUInt16LE(po + 6) & 0x7fff
+            const i3 = data.readUInt16LE(po + 8) & 0x7fff
+            if (i1 !== i2 && i1 !== i3 && i2 !== i3) n++
         }
         return n
     }
@@ -357,17 +363,62 @@ KKCT.ybn = (() => {
         const type = data.readUInt8(off + B.TYPE)
         if (!isGeom(type)) return null
         const pmiPtr = res(data.readUInt32LE(off + GEO.POLYMATS))
+        const polysPtr = res(data.readUInt32LE(off + GEO.POLYS))
         const polyCount = data.readUInt32LE(off + GEO.PCOUNT)
         const matCount = data.readUInt8(off + GEO.MATCOUNT)
-        if (pmiPtr < 0 || !polyCount || !matCount) return null
+        if (pmiPtr < 0 || polysPtr < 0 || !polyCount || !matCount) return null
         const counts = new Array(matCount).fill(0)
         const of = new Uint8Array(polyCount)
         for (let p = 0; p < polyCount; p++) {
             const slot = data.readUInt8(pmiPtr + p)
             of[p] = slot
-            if (slot < matCount) counts[slot]++
+            const po = polysPtr + p * 16
+            const i1 = data.readUInt16LE(po + 4) & 0x7fff
+            const i2 = data.readUInt16LE(po + 6) & 0x7fff
+            const i3 = data.readUInt16LE(po + 8) & 0x7fff
+            if (slot < matCount && i1 !== i2 && i1 !== i3 && i2 !== i3) counts[slot]++
         }
         return { matCount, polyCount, counts, slotOf: of, room: materialRoom(data, off) }
+    }
+
+    function removedFaces(buf, bi, polys) {
+        const { data } = KKCT.rsc7.parse(buf)
+        const cmp = composite(data)
+        const off = cmp ? childOffset(data, cmp, bi) : (bi === 0 ? 0 : -1)
+        if (off < 0 || !isGeom(data.readUInt8(off + B.TYPE))) return 0
+        const polysPtr = res(data.readUInt32LE(off + GEO.POLYS))
+        const polyCount = data.readUInt32LE(off + GEO.PCOUNT)
+        if (polysPtr < 0 || !polyCount || !Array.isArray(polys)) return 0
+        let removed = 0
+        for (const p of polys) {
+            if (!Number.isInteger(p) || p < 0 || p >= polyCount) continue
+            const po = polysPtr + p * 16
+            const i1 = data.readUInt16LE(po + 4) & 0x7fff
+            const i2 = data.readUInt16LE(po + 6) & 0x7fff
+            const i3 = data.readUInt16LE(po + 8) & 0x7fff
+            if (i1 === i2 && i1 === i3) removed++
+        }
+        return removed
+    }
+
+    function removeFaces(data, cmp, edit) {
+        const off = cmp ? childOffset(data, cmp, edit.bi) : (edit.bi === 0 ? 0 : -1)
+        if (off < 0 || !isGeom(data.readUInt8(off + B.TYPE))) return 'that bound has no geometry to edit'
+        const polysPtr = res(data.readUInt32LE(off + GEO.POLYS))
+        const polyCount = data.readUInt32LE(off + GEO.PCOUNT)
+        if (polysPtr < 0 || !polyCount) return 'that bound has no polygons'
+        let wrote = 0
+        for (const p of edit.polys) {
+            if (!Number.isInteger(p) || p < 0 || p >= polyCount) continue
+            const po = polysPtr + p * 16
+            if ((data.readUInt8(po) & 7) !== 0) continue
+            const first = data.readUInt16LE(po + 4) & 0x7fff
+            data.writeUInt16LE(first, po + 6)
+            data.writeUInt16LE(first, po + 8)
+            wrote++
+        }
+        if (!wrote) return 'none of those faces are triangle faces in this bound'
+        return null
     }
 
     function blockTargets(data) {
@@ -867,6 +918,22 @@ KKCT.ybn = (() => {
                 continue
             }
 
+            if (edit.kind === 'removeFaces') {
+                if (!Array.isArray(edit.polys)) {
+                    missed.push(edit)
+                    continue
+                }
+                const err = removeFaces(data, cmp, edit)
+                if (err) {
+                    missed.push(edit)
+                    lastError = err
+                    continue
+                }
+                moved = true
+                applied.push(edit)
+                continue
+            }
+
             if (edit.kind === 'addMaterial') {
                 const off = cmp ? childOffset(data, cmp, edit.bi) : (edit.bi === 0 ? 0 : -1)
                 if (off < 0 || !isGeom(data.readUInt8(off + B.TYPE))) {
@@ -953,6 +1020,6 @@ KKCT.ybn = (() => {
         return { buf: KKCT.rsc7.write(parsed, data), applied: applied.length, missed: missed.length }
     }
 
-    return { parse, parseGeometry, inspect, geometryByBound, faceData, slotUsage, canMoveVerts, patch }
+    return { parse, parseGeometry, inspect, geometryByBound, faceData, slotUsage, canMoveVerts, removedFaces, patch }
 })()
 })()

@@ -42,7 +42,6 @@ function Swatches({ b, colors }: { b: CollisionBound; colors: [number, number, n
 
 export function CollisionBounds({ c }: { c: Conflict }) {
     const collision = useStore(s => s.collision)
-    const collResource = useStore(s => s.collResource)
     const collEdit = useStore(s => s.collEdit)
     const collEditLive = useStore(s => s.collEditLive)
     const collMats = useStore(s => s.collMats)
@@ -75,7 +74,8 @@ export function CollisionBounds({ c }: { c: Conflict }) {
 
     const { composite, bounds } = collision.inspect
     const editing = !!collEdit || !!faceEdit
-    const copies = c.resources.filter(r => r.rel)
+    const copies = c.resources.filter(r => r.rel && !r.status.includes('outside stream') && !r.status.includes('never loads') && !r.status.includes('unreadable'))
+    const repeatedResource = copies.some((copy, i) => copies.some((other, j) => i !== j && copy.name === other.name))
     const verified = collVerify && collVerify.state !== 'running' ? collVerify : null
 
     return (
@@ -84,19 +84,19 @@ export function CollisionBounds({ c }: { c: Conflict }) {
                 <div className="flex gap-0.5 rounded-lg border border-border bg-background p-0.5">
                     {copies.map(r => (
                         <button
-                            key={r.name}
+                            key={`${r.name}_${r.rel}`}
                             type="button"
                             disabled={editing}
-                            onClick={() => requestCollision(c, r.name)}
-                            aria-pressed={collResource === r.name}
+                            onClick={() => requestCollision(c, r.name, r.rel)}
+                            aria-pressed={collision.resource === r.name && collision.rel === r.rel}
                             className={cn(
                                 'min-h-6 min-w-0 flex-1 truncate rounded-md px-1 py-1 font-mono text-3xs transition-colors duration-150 cursor-pointer disabled:pointer-events-none disabled:opacity-40',
-                                collResource === r.name
+                                collision.resource === r.name && collision.rel === r.rel
                                     ? 'bg-primary text-primary-foreground'
                                     : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
                             )}
                         >
-                            {r.name}
+                            {r.name}{repeatedResource ? ` · ${r.rel}` : ''}
                         </button>
                     ))}
                 </div>

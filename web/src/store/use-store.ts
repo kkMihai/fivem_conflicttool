@@ -96,6 +96,7 @@ interface StoreState {
     stopFaceEdit: () => void
     faceSelectOp: (op: string, value?: number) => void
     applyFaceMaterial: (type: number, flags?: number) => void
+    removeSelectedFaces: () => void
     faceMove: (op: 'begin' | 'apply' | 'cancel') => Promise<void>
     requestCollision: (c: Conflict, resource?: string, rel?: string) => void
     editCollisionBound: (c: Conflict, bi: number) => Promise<void>
@@ -377,6 +378,7 @@ export const useStore = create<StoreState>((set, get) => ({
             conflictId: c.id,
             file: coll.file,
             resource: coll.resource,
+            rel: coll.rel,
             bi
         })
         if (res?.ok) set({ faceEdit: { bi, file: coll.file }, faceSel: null, faceInfo: null, openBound: bi })
@@ -399,6 +401,11 @@ export const useStore = create<StoreState>((set, get) => ({
     applyFaceMaterial: (type, flags) => {
         if (isEnvBrowser()) return
         fetchNui('applyFaceMaterial', { type, flags })
+    },
+
+    removeSelectedFaces: () => {
+        if (isEnvBrowser()) return
+        fetchNui('removeSelectedFaces')
     },
 
     faceMove: async op => {
@@ -435,6 +442,7 @@ export const useStore = create<StoreState>((set, get) => ({
             conflictId: c.id,
             file: coll.file,
             resource: coll.resource,
+            rel: coll.rel,
             bi,
             whole: false
         })
@@ -453,6 +461,7 @@ export const useStore = create<StoreState>((set, get) => ({
             conflictId: c.id,
             file: coll.file,
             resource: coll.resource,
+            rel: coll.rel,
             whole: true
         })
         if (res?.ok) set({ collEdit: { file: coll.file, bi: null, whole: true }, collEditLive: null })
@@ -482,6 +491,7 @@ export const useStore = create<StoreState>((set, get) => ({
             conflictId: c.id,
             file: coll.file,
             resource: coll.resource,
+            rel: coll.rel,
             bi,
             slot,
             ...patch

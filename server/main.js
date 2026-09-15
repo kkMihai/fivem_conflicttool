@@ -46,7 +46,7 @@ function scanMeta(scan) {
             hiddenCount++
             continue
         }
-        counts.all++
+        if (c.kind !== 'collision-file' && c.kind !== 'occlusion-file') counts.all++
         counts[c.cat] = (counts[c.cat] || 0) + 1
         if (c.autoRes) autoRes++
         if (c.isNew) newCount++
@@ -214,7 +214,7 @@ onNet('kk_ct:bury', d => {
 })
 
 function occlBoxesFrom(d) {
-    if (!d || !Array.isArray(d.boxes) || d.boxes.length < 2) return null
+    if (!d || !Array.isArray(d.boxes) || !d.boxes.length) return null
     return d.boxes
 }
 
@@ -414,6 +414,7 @@ function pushCollAfterUndo(src, rec) {
             conflictId: rec.conflictId || null,
             file: rec.file,
             resource,
+            rel: entry.rel,
             bounds: KKCT.ybn.inspect(current).bounds
         })
     } catch (e) {
@@ -548,18 +549,22 @@ onNet('kk_ct:restore', id => {
     })
 })
 
-function collEntry(file, resource) {
+function collEntry(file, resource, rel) {
     const scan = KKCT.scanner.last()
     if (!scan || typeof file !== 'string') return null
     const entries = scan.index.get(file.toLowerCase())
     if (!entries) return null
-    return (resource ? entries.find(e => e.resource === resource) : null) || entries[entries.length - 1] || null
+    const usable = entries.filter(e => e.inStream && !e.parseError)
+    if (!resource) return usable[usable.length - 1] || null
+    const matching = usable.filter(e => e.resource === resource)
+    if (rel) return matching.find(e => e.rel === rel) || null
+    return matching[matching.length - 1] || null
 }
 
-onNet('kk_ct:collisionBounds', (file, resource) => {
+onNet('kk_ct:collisionBounds', (file, resource, rel) => {
     const src = source
     if (!allowed(src)) return
-    const entry = collEntry(file, resource)
+    const entry = collEntry(file, resource, rel)
     if (!entry) return
     try {
         const buf = currentYbn(entry)
@@ -576,10 +581,30 @@ onNet('kk_ct:collisionBounds', (file, resource) => {
     }
 })
 
-function currentYbn(entry) {
-    const buf = fs.readFileSync(entry.abs)
+function currentYbnState(entry) {
+    let buf = fs.readFileSync(entry.abs)
+    let mergeGroup = null
+    const merge = KKCT.decisions.pendingAssets().find(a =>
+        a.action === 'merge' && a.merge && a.merge.kind === 'ybn' && a.loser &&
+        a.loser.resource === entry.resource && (a.loser.relPath || a.loser.rel) === entry.rel)
+    if (merge) {
+        const preview = KKCT.merge.preview(merge.conflictId, merge.file, merge.merge.policy, merge.merge.base)
+        if (!preview.ok || !preview.result || !Buffer.isBuffer(preview.result.buf)) {
+            throw new Error(preview.reason || 'the queued collision merge could not be rebuilt')
+        }
+        if (preview.result.report.digest !== merge.merge.digest) {
+            throw new Error('the collision copies changed since the merge was queued')
+        }
+        buf = preview.result.buf
+        mergeGroup = merge.merge.group
+    }
     const prior = pendingYbnEdits(entry.resource, entry.rel)
-    return prior.length ? KKCT.ybn.patch(buf, prior).buf : buf
+    if (prior.length) buf = KKCT.ybn.patch(buf, prior).buf
+    return { buf, mergeGroup }
+}
+
+function currentYbn(entry) {
+    return currentYbnState(entry).buf
 }
 
 function pendingYbnEdits(resource, rel) {
@@ -593,10 +618,10 @@ function pendingYbnEdits(resource, rel) {
     return out
 }
 
-onNet('kk_ct:faceData', (file, resource, bi) => {
+onNet('kk_ct:faceData', (file, resource, rel, bi) => {
     const src = source
     if (!allowed(src)) return
-    const entry = collEntry(file, resource)
+    const entry = collEntry(file, resource, rel)
     if (!entry || typeof bi !== 'number') return
     try {
         const data = KKCT.ybn.faceData(currentYbn(entry), bi, 40000)
@@ -618,13 +643,14 @@ onNet('kk_ct:faceData', (file, resource, bi) => {
 function collApply(src, d, build, message) {
     if (!allowed(src)) return
     if (!d || typeof d !== 'object') return
-    const entry = collEntry(d.file, d.resource)
+    const entry = collEntry(d.file, d.resource, d.rel)
     if (!entry) {
         emitNet('kk_ct:notice', src, 'that collision file is not in the last scan, run a fresh scan')
         return
     }
     try {
-        const base = currentYbn(entry)
+        const current = currentYbnState(entry)
+        const base = current.buf
         const ins = KKCT.ybn.inspect(base)
         const result = build(ins, base)
         if (!result.ok) {
@@ -639,6 +665,7 @@ function collApply(src, d, build, message) {
             file: d.file || entry.rel,
             loser: { resource: entry.resource, relPath: entry.rel, sha1: entry.sha1 },
             ybn: { key: result.key, edits: result.edits },
+            merge: current.mergeGroup ? { group: current.mergeGroup } : null,
             group: result.group || undefined,
             by: GetPlayerName(src)
         })
@@ -646,6 +673,7 @@ function collApply(src, d, build, message) {
             conflictId: d.conflictId || null,
             file: d.file,
             resource: entry.resource,
+            rel: entry.rel,
             bounds,
             faces: result.faces || null
         })
@@ -725,6 +753,15 @@ onNet('kk_ct:moveFaces', d => {
     }, r => `Queued a move of ${r.after.faces} ${r.after.faces === 1 ? 'face' : 'faces'}.`)
 })
 
+onNet('kk_ct:removeFaces', d => {
+    const src = source
+    collApply(src, d, (ins, base) => {
+        const faces = KKCT.ybn.faceData(base, d.bi, 40000)
+        const r = KKCT.collision.removeFaces(ins, faces ? faces.total : 0, d.bi, d.polys)
+        return r.ok ? { ...r, key: `remove:${d.bi}:${Date.now()}`, faces: { bi: d.bi, geometry: true } } : r
+    }, r => `Queued removal of ${r.after.faces} collision ${r.after.faces === 1 ? 'face' : 'faces'}.`)
+})
+
 onNet('kk_ct:setCollisionMaterial', d => {
     const src = source
     collApply(src, d, ins => {
@@ -733,8 +770,8 @@ onNet('kk_ct:setCollisionMaterial', d => {
     }, (r, entry) => `Queued surface ${r.after.name} on bound ${d.bi + 1} in ${entry.resource}.`)
 })
 
-function sendCollisionGeom(src, file, resource, tag, cap) {
-    const entry = collEntry(file, resource)
+function sendCollisionGeom(src, file, resource, rel, tag, cap) {
+    const entry = collEntry(file, resource, rel)
     if (!entry) return
     try {
         const buf = currentYbn(entry)
@@ -745,10 +782,10 @@ function sendCollisionGeom(src, file, resource, tag, cap) {
     }
 }
 
-onNet('kk_ct:collisionGeom', (file, resource) => {
+onNet('kk_ct:collisionGeom', (file, resource, rel) => {
     const src = source
     if (!allowed(src)) return
-    sendCollisionGeom(src, file, resource, 'sel', 8000)
+    sendCollisionGeom(src, file, resource, rel, 'sel', 8000)
 })
 
 onNet('kk_ct:collisionGeomAll', () => {
@@ -759,7 +796,7 @@ onNet('kk_ct:collisionGeomAll', () => {
     const colls = scan.conflicts.filter(c => c.cat === 'coll' && c.kind === 'dup-file').slice(0, 10)
     for (const c of colls) {
         const winner = c.resources[c.resources.length - 1]
-        sendCollisionGeom(src, c.file, winner ? winner.name : null, c.file, 4000)
+        sendCollisionGeom(src, c.file, winner ? winner.name : null, winner ? winner.rel : null, c.file, 4000)
     }
 })
 

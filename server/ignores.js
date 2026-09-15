@@ -53,6 +53,10 @@ KKCT.ignores = (() => {
         let added = false
         for (const c of conflicts) {
             c.ignored = !!map[c.key]
+            if (c.kind === 'collision-file' || c.kind === 'occlusion-file') {
+                c.isNew = false
+                continue
+            }
             c.isNew = !firstScan && !seen.has(c.key)
             if (!seen.has(c.key)) {
                 seen.add(c.key)

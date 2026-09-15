@@ -299,6 +299,28 @@ KKCT.collision = (() => {
         }
     }
 
+    function removeFaces(ins, total, bi, polys) {
+        const bound = boundOf(ins, bi)
+        if (!bound) {
+            return { ok: false, reason: 'that bound was not found, run a fresh scan first' }
+        }
+        if (!Number.isInteger(total) || total < 1) {
+            return { ok: false, reason: 'that bound has no triangle faces to remove' }
+        }
+        if (!Array.isArray(polys) || !polys.length) {
+            return { ok: false, reason: 'no faces are selected' }
+        }
+        const picked = [...new Set(polys.map(Number).filter(p => Number.isInteger(p) && p >= 0 && p < total))]
+        if (!picked.length) {
+            return { ok: false, reason: 'none of those faces are in this bound, run a fresh scan first' }
+        }
+        return {
+            ok: true,
+            edits: [{ kind: 'removeFaces', bi, polys: picked }],
+            after: { faces: picked.length }
+        }
+    }
+
     const PROBE_EPS = 0.05
     const PROBE_CELL = 0.5
 
@@ -382,6 +404,6 @@ KKCT.collision = (() => {
         return out
     }
 
-    return { transform, shiftAll, material, assignFaces, moveFaces, probeSets }
+    return { transform, shiftAll, material, assignFaces, moveFaces, removeFaces, probeSets }
 })()
 })()

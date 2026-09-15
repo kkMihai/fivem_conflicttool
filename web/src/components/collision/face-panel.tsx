@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowsOutCardinal, Check, PaintBrush, Selection, Warning, X } from '@phosphor-icons/react'
+import { ArrowsOutCardinal, Check, PaintBrush, Selection, Trash, Warning, X } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { MaterialPicker } from '@/components/collision/material-picker'
@@ -18,6 +18,7 @@ export function FacePanel({ bound }: { bound: CollisionBound }) {
     const stopFaceEdit = useStore(s => s.stopFaceEdit)
     const faceSelectOp = useStore(s => s.faceSelectOp)
     const applyFaceMaterial = useStore(s => s.applyFaceMaterial)
+    const removeSelectedFaces = useStore(s => s.removeSelectedFaces)
     const faceMove = useStore(s => s.faceMove)
     const gizmoSpace = useStore(s => s.gizmoSpace)
     const [picking, setPicking] = useState(false)
@@ -132,16 +133,28 @@ export function FacePanel({ bound }: { bound: CollisionBound }) {
             </div>
 
             {!moving && (
-                <Button
-                    variant="secondary"
-                    className="mt-1 w-full justify-start"
-                    disabled={!count}
-                    onClick={() => faceMove('begin')}
-                    title="Grab the selected faces with the gizmo"
-                >
-                    <ArrowsOutCardinal />
-                    Move / rotate {count} selected {count === 1 ? 'face' : 'faces'}
-                </Button>
+                <div className="mt-1 grid grid-cols-2 gap-1">
+                    <Button
+                        variant="secondary"
+                        className="justify-start"
+                        disabled={!count}
+                        onClick={() => faceMove('begin')}
+                        title="Grab the selected faces with the gizmo"
+                    >
+                        <ArrowsOutCardinal />
+                        Move / rotate
+                    </Button>
+                    <Button
+                        variant="destructive"
+                        className="justify-start"
+                        disabled={!count}
+                        onClick={() => removeSelectedFaces()}
+                        title="Remove the selected faces from collision"
+                    >
+                        <Trash />
+                        Remove {count}
+                    </Button>
+                </div>
             )}
 
             <div className="mt-1.5 border-t border-border pt-1.5">
