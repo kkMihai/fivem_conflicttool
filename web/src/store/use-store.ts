@@ -639,7 +639,7 @@ export const useStore = create<StoreState>((set, get) => ({
         if (get().preview) {
             fetchNui('previewEntity', { op: 'reset' })
         }
-        set({ selectedId: id, preview: null, ctxMenu: null })
+        set({ selectedId: id, preview: null, ctxMenu: null, mergePreview: null })
         if (!id) {
             fetchNui('selectConflict', { id: null })
             fetchNui('collisionBox', { on: false })
