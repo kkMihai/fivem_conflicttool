@@ -36,6 +36,19 @@ KKCT.conflicts = (() => {
         return null
     }
 
+    function entityCenter(entities) {
+        if (!entities.length) return null
+        const min = [...entities[0].p]
+        const max = [...min]
+        for (const e of entities) {
+            for (let i = 0; i < 3; i++) {
+                min[i] = Math.min(min[i], e.p[i])
+                max[i] = Math.max(max[i], e.p[i])
+            }
+        }
+        return center({ min, max })
+    }
+
     function entKey(e) {
         if (e.g) return `g${e.g}`
         return `a${e.a}_${Math.round(e.p[0] * 4)}_${Math.round(e.p[1] * 4)}_${Math.round(e.p[2] * 4)}`
@@ -650,7 +663,8 @@ KKCT.conflicts = (() => {
             if (!key.endsWith('.ymap')) continue
             const editable = loadOrder(entries).filter(e => e.inStream && !e.parseError && e.parsed && e.parsed.entities.some(entity => !entity.mlo))
             for (const entry of editable) {
-                const count = entry.parsed.entities.filter(entity => !entity.mlo).length
+                const props = entry.parsed.entities.filter(entity => !entity.mlo)
+                const count = props.length
                 out.push({
                     id: nid('c_edit_ymap'),
                     key: `edit-ymap|${key}|${entry.resource}|${entry.rel}`,
@@ -662,7 +676,7 @@ KKCT.conflicts = (() => {
                     file: key,
                     badges: [`${count} editable ${count === 1 ? 'prop' : 'props'}`],
                     vanilla: vanillaSet ? vanillaSet.has(key) : false,
-                    pos: null,
+                    pos: ymapPos(entry.parsed) || entityCenter(props),
                     autoRes: null,
                     resources: [{
                         name: entry.resource,
