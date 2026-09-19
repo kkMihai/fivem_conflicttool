@@ -1,4 +1,4 @@
-import { ArrowsOutCardinal, Check, Crosshair, Cube, Eye, EyeSlash, Swap, Trash, Warning, X } from '@phosphor-icons/react'
+import { ArrowsOutCardinal, Check, Crosshair, Cube, Eye, EyeSlash, Info, Swap, Trash, Warning, X } from '@phosphor-icons/react'
 import { CollisionBounds } from '@/components/collision/collision-bounds'
 import { YmapEditor } from '@/components/ymap/ymap-editor'
 import { MergePanel } from '@/components/conflicts/merge-panel'
@@ -131,8 +131,10 @@ export function ConflictDetail() {
 
                 <div className="mx-3 mt-2 rounded-lg border border-border bg-card p-2.5">
                     <div className="flex items-center gap-1.5 text-2xs font-bold">
-                        <Warning className="h-3 w-3 text-cat-occl" aria-hidden="true" />
-                        {editableFile ? 'About this file' : 'Why this is a conflict'}
+                        {editableFile
+                            ? <Info className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
+                            : <Warning className="h-3 w-3 text-cat-occl" aria-hidden="true" />}
+                        {editableYmap ? 'Editable YMAP props' : editableCollision ? 'Editable collision file' : editableOcclusion ? 'Editable occlusion file' : 'Why this is a conflict'}
                     </div>
                     <p className="mt-1.5 text-2xs leading-relaxed text-secondary-foreground">{c.explain.summary}</p>
                     <div className="mt-2 space-y-1">
