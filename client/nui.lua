@@ -59,7 +59,7 @@ RegisterNUICallback('selectConflict', function(data, cb)
     CT.selected = data and data.id or nil
     CT.selectedIndex = data and data.index or 0
     CT.selectedLabel = data and data.label or nil
-    if data and data.pos and data.teleport then
+    if data and data.pos and data.teleport and not CT.Freecam.Near(data.pos, 25.0) then
         CreateThread(function()
             local ok, err = pcall(CT.Freecam.SetTo, data.pos)
             if not ok then
@@ -71,7 +71,7 @@ end)
 
 RegisterNUICallback('teleportTo', function(data, cb)
     cb(true)
-    if data and data.pos then
+    if data and data.pos and (not data.auto or not CT.Freecam.Near(data.pos, 25.0)) then
         CreateThread(function()
             local ok, err = pcall(CT.Freecam.SetTo, data.pos)
             if not ok then

@@ -45,7 +45,7 @@ export function YmapEditor({ c }: { c: Conflict }) {
     const pick = (entity: YmapEntity) => {
         setSelected(entity)
         fetchNui('collisionBox', { on: true, model: entity.model, pos: entity.pos, quat: entity.rot })
-        fetchNui('teleportTo', { pos: entity.pos })
+        fetchNui('teleportTo', { pos: entity.pos, auto: true })
     }
 
     const remove = () => {

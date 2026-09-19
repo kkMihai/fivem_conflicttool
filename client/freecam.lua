@@ -90,6 +90,12 @@ function FC.Stop()
     SetEntityCollision(ped, true, true)
 end
 
+function FC.Near(pos, radius)
+    local target = vector3(pos[1] or pos.x, pos[2] or pos.y, pos[3] or pos.z)
+    local current = FC.active and FC.pos or GetGameplayCamCoord()
+    return #(current - target) <= radius
+end
+
 function FC.SetTo(pos)
     local target = vector3(pos[1] or pos.x, pos[2] or pos.y, pos[3] or pos.z)
     local offset = vector3(-14.0, -14.0, 10.0)
