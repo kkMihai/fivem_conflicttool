@@ -43,10 +43,17 @@ KKCT.fsops = (() => {
     }
 
     function copyInto(src, dest) {
+        const matches = () => {
+            try {
+                return fs.readFileSync(src).equals(fs.readFileSync(dest))
+            } catch {
+                return false
+            }
+        }
         if (!shellMode) {
             try {
                 fs.copyFileSync(src, dest)
-                return
+                if (matches()) return
             } catch (e) {
                 shellMode = true
             }
@@ -54,8 +61,8 @@ KKCT.fsops = (() => {
         try {
             shellCopy(src, dest)
         } catch {}
-        if (!fs.existsSync(dest)) {
-            throw new Error('blocked: grant fivem_conflicttool filesystem access in server.cfg')
+        if (!matches()) {
+            throw new Error('blocked: grant fivem_conflicttool write access to this resource in server.cfg')
         }
     }
 
@@ -323,6 +330,7 @@ KKCT.resolver = (() => {
         const moves = []
         const errors = []
         const appliedIds = new Set()
+        const failedIds = new Set()
         const backedUp = new Map()
         let step = 0
 
@@ -382,6 +390,10 @@ KKCT.resolver = (() => {
                 }
             } catch (e) {
                 failedGroups.add(job.group)
+                for (const d of job.records) {
+                    if (d.conflictId) failedIds.add(d.conflictId)
+                    for (const id of Array.isArray(d.merge.ids) ? d.merge.ids : []) failedIds.add(id)
+                }
                 errors.push({ file: label, resource: [...new Set(job.records.map(d => (d.loser ? d.loser.resource : '?')))].join(', '), msg: e.message })
             }
             await new Promise(r => setImmediate(r))
@@ -421,6 +433,7 @@ KKCT.resolver = (() => {
                     })
                 }
             } catch (e) {
+                if (d.conflictId) failedIds.add(d.conflictId)
                 errors.push({ file: d.file, resource: d.loser ? d.loser.resource : '?', msg: e.message })
             }
             await new Promise(r => setImmediate(r))
@@ -453,6 +466,9 @@ KKCT.resolver = (() => {
                     recordMove(job.resource, job.rel, b.sha, b.dest, 'edit', { ybn: true })
                 }
             } catch (e) {
+                for (const d of job.decisions) {
+                    if (d.conflictId) failedIds.add(d.conflictId)
+                }
                 errors.push({ file: job.file, resource: job.resource, msg: e.message })
             }
             await new Promise(r => setImmediate(r))
@@ -462,6 +478,7 @@ KKCT.resolver = (() => {
             step++
             progress({ step, total: totalSteps, label: job.archetype || 'prop edit' })
             let touched = false
+            let failed = false
             const sharedTo = job.action === 'remove' ? sharedBuryTarget(job) : null
             for (const t of job.targets) {
                 try {
@@ -499,10 +516,12 @@ KKCT.resolver = (() => {
                         })
                     }
                 } catch (e) {
+                    failed = true
+                    if (job.conflictId) failedIds.add(job.conflictId)
                     errors.push({ file: t.rel, resource: t.resource, msg: e.message })
                 }
             }
-            if (touched) {
+            if (touched && !failed) {
                 job.state = 'applied'
                 job.bundleId = bundleId
                 if (job.conflictId) appliedIds.add(job.conflictId)
@@ -510,9 +529,10 @@ KKCT.resolver = (() => {
             await new Promise(r => setImmediate(r))
         }
 
+        const successfulEntities = fresh.filter(e => !entityJobs.includes(e) || e.state === 'applied')
         const summary = {
-            removed: fresh.filter(e => e.action === 'remove').length,
-            moved: fresh.filter(e => e.action === 'move').length,
+            removed: successfulEntities.filter(e => e.action === 'remove').length,
+            moved: successfulEntities.filter(e => e.action === 'move').length,
             buried: moves.filter(m => m.kind === 'edit' && !m.clip && !m.move && !m.ybn && !m.merge).length,
             clipped: moves.filter(m => m.kind === 'edit' && m.clip).length,
             collision: moves.filter(m => m.ybn).length,
@@ -522,7 +542,9 @@ KKCT.resolver = (() => {
             files: moves.length,
             errors: errors.length
         }
-        const permissionHint = errors.some(e => (e.msg || '').includes('blocked: grant'))
+        const permissionErrors = errors.filter(e => /blocked: grant|EACCES|EPERM|permission denied/i.test(e.msg || ''))
+        const permissionHint = permissionErrors.length > 0
+        const permissionResources = [...new Set(permissionErrors.flatMap(e => String(e.resource || '').split(',').map(name => name.trim()).filter(name => name && name !== '?')))]
 
         if (moves.length) {
             const manifest = {
@@ -538,7 +560,7 @@ KKCT.resolver = (() => {
 
         const retryIds = new Set(entityJobs.filter(j => (j.state || 'live') === 'live').map(j => j.id))
         for (const e of fresh) {
-            if (e.conflictId) appliedIds.add(e.conflictId)
+            if (e.conflictId && !retryIds.has(e.id)) appliedIds.add(e.conflictId)
             if (!retryIds.has(e.id)) e.reported = true
         }
 
@@ -547,9 +569,11 @@ KKCT.resolver = (() => {
             bundleId: moves.length ? bundleId : null,
             summary,
             errors,
-            conflictIds: [...appliedIds],
+            conflictIds: [...appliedIds].filter(id => !failedIds.has(id)),
+            failedConflictIds: [...failedIds],
             restartRequired: moves.length > 0,
-            permissionHint
+            permissionHint,
+            permissionResources
         }
     }
 
