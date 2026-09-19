@@ -154,6 +154,19 @@ KKCT.resolver = (() => {
         )
     }
 
+    function moveYmapInPlace(src, d, backup) {
+        const delta = d.ymapMove?.delta
+        if (!Array.isArray(delta) || delta.length !== 3 || !delta.every(Number.isFinite)) throw new Error('whole YMAP move has no valid offset')
+        const buf = fs.readFileSync(src)
+        const before = KKCT.ymap.parse(buf)
+        const result = KKCT.ymap.translate(buf, delta)
+        writeBack(src, result.buf, backup, raw => {
+            const after = KKCT.ymap.parse(raw)
+            return after.entities.length === before.entities.length && after.entities.every((entity, i) =>
+                entity.p.every((value, axis) => Math.abs(value - before.entities[i].p[axis] - delta[axis]) < 0.05))
+        })
+    }
+
     function writeBack(src, buf, backup, verify) {
         const tmp = path.join(backupsDir, `.patch-${Date.now()}-${Math.random().toString(36).slice(2)}.tmp`)
         fs.writeFileSync(tmp, buf)
@@ -421,6 +434,8 @@ KKCT.resolver = (() => {
                     buryInPlace(b.src, d, b.dest)
                 } else if (d.action === 'clip') {
                     clipInPlace(b.src, d, b.dest)
+                } else if (d.action === 'ymap-move') {
+                    moveYmapInPlace(b.src, d, b.dest)
                 } else {
                     KKCT.fsops.removeFile(b.src)
                 }
@@ -428,8 +443,9 @@ KKCT.resolver = (() => {
                 d.bundleId = bundleId
                 if (d.conflictId) appliedIds.add(d.conflictId)
                 if (b.first) {
-                    recordMove(d.loser.resource, rel, b.sha, b.dest, (d.action === 'bury' || d.action === 'clip') ? 'edit' : 'move', {
-                        clip: d.action === 'clip' || undefined
+                    recordMove(d.loser.resource, rel, b.sha, b.dest, (d.action === 'bury' || d.action === 'clip' || d.action === 'ymap-move') ? 'edit' : 'move', {
+                        clip: d.action === 'clip' || undefined,
+                        move: d.action === 'ymap-move' || undefined
                     })
                 }
             } catch (e) {

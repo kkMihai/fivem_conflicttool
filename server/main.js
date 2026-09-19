@@ -174,9 +174,11 @@ onNet('kk_ct:ymapEntities', d => {
     const query = String(d.query || '').trim().toLowerCase().slice(0, 80)
     const offset = Math.max(0, Math.floor(Number(d.offset) || 0))
     const matches = []
+    let anchor = null
     for (const [index, entity] of entry.parsed.entities.entries()) {
         if (entity.mlo) continue
         const name = KKCT.names.resolve(entity.a)
+        if (!anchor) anchor = { index, model: entity.a, name, guid: entity.g, pos: entity.p, rot: entity.r }
         if (query && !name.toLowerCase().includes(query) && !String(entity.a).includes(query) && !String(index + 1).includes(query)) continue
         matches.push({ index, model: entity.a, name, guid: entity.g, pos: entity.p, rot: entity.r })
     }
@@ -185,8 +187,20 @@ onNet('kk_ct:ymapEntities', d => {
     const focused = focusedEntity && !focusedEntity.mlo
         ? { index: focusIndex, model: focusedEntity.a, name: KKCT.names.resolve(focusedEntity.a), guid: focusedEntity.g, pos: focusedEntity.p, rot: focusedEntity.r }
         : null
-    const payload = { requestId: d.requestId, resource: entry.resource, rel: entry.rel, total: matches.length, offset, entities: matches.slice(offset, offset + 80), focused }
+    const payload = { requestId: d.requestId, resource: entry.resource, rel: entry.rel, total: matches.length, offset, entities: matches.slice(offset, offset + 80), focused, anchor }
     TriggerLatentClientEvent('kk_ct:ymapEntitiesData', String(src), 2000000, payload)
+})
+
+onNet('kk_ct:ymapMovePreview', d => {
+    const src = source
+    if (!allowed(src) || !d || typeof d !== 'object') return
+    const entry = editableYmap(d.resource, d.rel)
+    if (!entry) {
+        emitNet('kk_ct:ymapMovePreviewData', src, { requestId: d.requestId, resource: d.resource, rel: d.rel, error: 'This YMAP is unavailable. Run a fresh scan.' })
+        return
+    }
+    const entities = entry.parsed.entities.map((entity, index) => ({ index, model: entity.a, pos: entity.p, rot: entity.r }))
+    TriggerLatentClientEvent('kk_ct:ymapMovePreviewData', String(src), 2000000, { requestId: d.requestId, resource: entry.resource, rel: entry.rel, entities })
 })
 
 onNet('kk_ct:findYmapProp', d => {
@@ -217,6 +231,10 @@ onNet('kk_ct:editYmapProp', d => {
     const src = source
     if (!allowed(src) || !d || (d.action !== 'move' && d.action !== 'remove')) return
     const entry = editableYmap(d.resource, d.rel)
+    if (entry && KKCT.decisions.pendingAssets().some(asset => asset.action === 'ymap-move' && asset.loser?.resource === entry.resource && asset.loser?.rel === entry.rel)) {
+        emitNet('kk_ct:notice', src, 'Resolve or undo the queued whole YMAP move before editing one prop.')
+        return
+    }
     const index = Number(d.index)
     const entity = entry && Number.isInteger(index) ? entry.parsed.entities[index] : null
     if (!entity || entity.mlo || typeof d.model !== 'number' || entity.a !== (d.model >>> 0)) {
@@ -248,6 +266,44 @@ onNet('kk_ct:editYmapProp', d => {
     broadcastDecisions()
     emitNet('kk_ct:ymapEditQueued', src, decision)
     emitNet('kk_ct:notice', src, `Queued ${d.action} for ${decision.archetype} in ${entry.resource}. Run Resolve to edit the YMAP file.`)
+    emitNet('kk_ct:decisionsMeta', src, KKCT.decisions.meta())
+    pushState(src)
+})
+
+onNet('kk_ct:moveYmap', d => {
+    const src = source
+    if (!allowed(src) || !d || typeof d !== 'object') return
+    const entry = editableYmap(d.resource, d.rel)
+    const delta = d.delta
+    if (!entry || !Array.isArray(delta) || delta.length !== 3 || !delta.every(value => typeof value === 'number' && Number.isFinite(value))) {
+        emitNet('kk_ct:notice', src, 'This YMAP is unavailable. Run a fresh scan.')
+        return
+    }
+    if (delta.every(value => Math.abs(value) < 0.001)) {
+        emitNet('kk_ct:notice', src, 'Move the prop before queuing a whole YMAP move.')
+        return
+    }
+    const conflictingEntity = KKCT.decisions.entityFileJobs().some(job => job.targets.some(target => target.resource === entry.resource && target.rel === entry.rel))
+    const conflictingAsset = KKCT.decisions.pendingAssets().some(asset => asset.action !== 'ymap-move' && asset.loser?.resource === entry.resource && (asset.loser?.relPath || asset.loser?.rel) === entry.rel)
+    if (conflictingEntity || conflictingAsset) {
+        emitNet('kk_ct:notice', src, 'Resolve or undo other queued edits to this YMAP before moving all objects.')
+        return
+    }
+    const conflict = KKCT.scanner.last().conflicts.find(item => item.kind === 'ymap-file' && item.resources[0]?.name === entry.resource && item.resources[0]?.rel === entry.rel)
+    if (!conflict) {
+        emitNet('kk_ct:notice', src, 'This YMAP is unavailable. Run a fresh scan.')
+        return
+    }
+    KKCT.decisions.addAsset({
+        action: 'ymap-move',
+        conflictId: conflict.id,
+        file: conflict.file,
+        loser: { resource: entry.resource, rel: entry.rel, sha1: entry.sha1 },
+        ymapMove: { delta },
+        by: GetPlayerName(src)
+    })
+    emitNet('kk_ct:ymapMoveQueued', src, { conflictId: conflict.id, file: conflict.file })
+    emitNet('kk_ct:notice', src, `Queued a whole YMAP move for ${entry.rel}. Run Resolve to write it.`)
     emitNet('kk_ct:decisionsMeta', src, KKCT.decisions.meta())
     pushState(src)
 })

@@ -75,7 +75,7 @@ export function TransformPanel() {
                     >
                         Move 2
                     </button>
-                    <button
+                    {!transform.ymapAll && <button
                         type="button"
                         aria-pressed={transform.mode === 'rotate'}
                         className={cn(
@@ -87,7 +87,7 @@ export function TransformPanel() {
                         onClick={() => setMode('rotate')}
                     >
                         Rotate 3
-                    </button>
+                    </button>}
                 </div>
             </div>
             <div className="mt-1.5 flex items-center gap-1.5 rounded-md border border-border bg-background px-1.5 py-1 text-3xs">
@@ -102,13 +102,14 @@ export function TransformPanel() {
                         <NumField label={`Position ${a}`} step={0.05} value={transform.pos[i]} onCommit={v => numChange('pos', i, v)} />
                     </div>
                 ))}
-                {rots.map((a, i) => (
+                {!transform.ymapAll && rots.map((a, i) => (
                     <div key={a}>
                         <div className="text-3xs font-bold text-muted-foreground">{a}</div>
                         <NumField label={a} step={1} value={transform.rot[i]} onCommit={v => numChange('rot', i, v)} />
                     </div>
                 ))}
             </div>
+            {transform.ymapAll && <p className="mt-2 text-3xs text-muted-foreground">Loaded YMAP objects move together. Resolve writes every object to the file.</p>}
             <div className="mt-2 flex items-center gap-1.5">
                 <Button
                     variant={transform.grid ? 'default' : 'secondary'}

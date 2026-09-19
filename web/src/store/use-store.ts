@@ -834,6 +834,15 @@ export const useStore = create<StoreState>((set, get) => ({
         const result = await fetchNui<any>('endTransform', { commit })
         if (commit && t) {
             if (result && result.pos) {
+                if (t.ymapAll) {
+                    const delta = result.pos.map((value: number, axis: number) => value - t.ymapAll!.anchor[axis]) as [number, number, number]
+                    if (delta.every(value => Math.abs(value) < 0.001)) {
+                        get().setNotice('Move the selected prop before applying the whole YMAP move.')
+                        return
+                    }
+                    fetchNui('moveYmap', { resource: t.ymapAll.resource, rel: t.ymapAll.rel, delta })
+                    return
+                }
                 if (t.ymap) {
                     fetchNui('editYmapProp', {
                         action: 'move',
@@ -864,6 +873,7 @@ export const useStore = create<StoreState>((set, get) => ({
             return
         }
         if (s.transform) {
+            if (s.transform.ymapAll && mode === 'rotate') return
             set({ transform: { ...s.transform, mode } })
             fetchNui('setGizmoMode', { mode })
             return

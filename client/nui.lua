@@ -31,6 +31,11 @@ RegisterNUICallback('ymapEntities', function(data, cb)
     TriggerServerEvent('kk_ct:ymapEntities', data)
 end)
 
+RegisterNUICallback('ymapMovePreview', function(data, cb)
+    cb(true)
+    TriggerServerEvent('kk_ct:ymapMovePreview', data)
+end)
+
 RegisterNUICallback('findYmapProp', function(data, cb)
     cb(true)
     TriggerServerEvent('kk_ct:findYmapProp', data)
@@ -39,6 +44,11 @@ end)
 RegisterNUICallback('editYmapProp', function(data, cb)
     cb(true)
     TriggerServerEvent('kk_ct:editYmapProp', data)
+end)
+
+RegisterNUICallback('moveYmap', function(data, cb)
+    cb(true)
+    TriggerServerEvent('kk_ct:moveYmap', data)
 end)
 
 RegisterNUICallback('setMarkers', function(data, cb)
@@ -99,18 +109,40 @@ RegisterNUICallback('startTransform', function(data, cb)
         cb({ ok = false, reason = 'This conflict has no object to move.' })
         return
     end
-    if not IsModelValid(data.model) then
+    if not data.group and not IsModelValid(data.model) then
         cb({ ok = false, reason = 'This model is not streamable, so it cannot be moved in game. Resolve it at file level instead.' })
         return
     end
     CreateThread(function()
-        local hideR = data.radius or 0.25
+        if data.group then
+            local anchor, missing = CT.Preview.StartLiveGroup(data.group, data.anchorIndex)
+            if not anchor then
+                cb({ ok = false, reason = 'The selected YMAP object is not loaded nearby. Move closer and try again.' })
+                return
+            end
+            if not CT.open then
+                CT.Preview.ClearTransform()
+                cb({ ok = false, reason = 'The editor closed before the preview was ready.' })
+                return
+            end
+            if missing > 0 then
+                nuiSend('notice', tostring(missing) .. ' YMAP objects are not loaded nearby, so only loaded objects can preview. Resolve still moves every object in the file.')
+            end
+            local pos = GetEntityCoords(anchor)
+            CT.typing = false
+            CT.Gizmo.Start(anchor)
+            CT.Gizmo.translateOnly = true
+            CT.Gizmo.SetMode('translate')
+            CT.ApplyFocus()
+            cb({ ok = true, pos = { pos.x, pos.y, pos.z } })
+            return
+        end
         local spots = data.spots
         local ghostPos = data.newPos
         if spots and #spots > 0 then
             if not ghostPos then
                 for _, sp in ipairs(spots) do
-                    local obj = GetClosestObjectOfType(sp.pos[1] + 0.0, sp.pos[2] + 0.0, sp.pos[3] + 0.0, hideR + 1.0, sp.model, false, false, false)
+                    local obj = GetClosestObjectOfType(sp.pos[1] + 0.0, sp.pos[2] + 0.0, sp.pos[3] + 0.0, (data.radius or 0.25) + 1.0, sp.model, false, false, false)
                     if (obj and obj ~= 0) or CT.StillDrawn(sp) then
                         ghostPos = sp.pos
                         break
@@ -118,22 +150,25 @@ RegisterNUICallback('startTransform', function(data, cb)
                 end
                 ghostPos = ghostPos or spots[1].pos
             end
-            for _, sp in ipairs(spots) do
-                CT.Preview.Hide(sp.model, sp.pos, hideR)
-            end
         else
-            CT.Preview.Hide(data.model, data.pos, hideR)
             ghostPos = ghostPos or data.pos
         end
         local ghost = CT.Preview.SpawnGhost(data.model, ghostPos, data.rot)
         if ghost then
             SetEntityAlpha(ghost, 255, false)
+            if not CT.open then
+                CT.Preview.ClearTransform()
+                cb({ ok = false, reason = 'The editor closed before the preview was ready.' })
+                return
+            end
             CT.typing = false
             CT.Gizmo.Start(ghost)
+            CT.Gizmo.translateOnly = data.translateOnly == true
+            if data.translateOnly then CT.Gizmo.SetMode('translate') end
             CT.ApplyFocus()
             cb({ ok = true, pos = ghostPos })
         else
-            CT.Preview.Reset()
+            CT.Preview.ClearTransform()
             cb({ ok = false, reason = 'This model failed to load, so it cannot be moved in game. Resolve it at file level instead.' })
         end
     end)
@@ -164,9 +199,7 @@ end)
 RegisterNUICallback('endTransform', function(data, cb)
     local result = CT.Gizmo.Stop(data and data.commit)
     CT.ApplyFocus()
-    if not (data and data.commit) then
-        CT.Preview.Reset()
-    end
+    CT.Preview.ClearTransform()
     cb(result or false)
 end)
 
@@ -566,6 +599,10 @@ RegisterNetEvent('kk_ct:ymapEntitiesData', function(data)
     nuiSend('ymapEntitiesData', data)
 end)
 
+RegisterNetEvent('kk_ct:ymapMovePreviewData', function(data)
+    nuiSend('ymapMovePreviewData', data)
+end)
+
 RegisterNetEvent('kk_ct:ymapPropFound', function(data)
     nuiSend('ymapPropFound', data)
 end)
@@ -573,6 +610,10 @@ end)
 RegisterNetEvent('kk_ct:ymapEditQueued', function(data)
     nuiSend('ymapEditQueued', data)
     CT.VerifyRemoval(data)
+end)
+
+RegisterNetEvent('kk_ct:ymapMoveQueued', function(data)
+    nuiSend('ymapMoveQueued', data)
 end)
 
 RegisterNetEvent('kk_ct:occlPreview', function(data)

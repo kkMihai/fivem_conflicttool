@@ -1,7 +1,8 @@
 CT.Preview = {
     hides = {},
     ghost = nil,
-    ghostModel = nil
+    ghostModel = nil,
+    group = nil
 }
 
 local PV = CT.Preview
@@ -51,14 +52,80 @@ function PV.SpawnGhost(model, pos, rot)
     return obj
 end
 
+function PV.StartLiveGroup(entries, anchorIndex)
+    PV.RestoreGroup()
+    local used = {}
+    local group = { objects = {}, anchor = nil, origin = nil }
+    local missing = 0
+    for index, item in ipairs(entries) do
+        local p = item.pos
+        local obj = GetClosestObjectOfType(p[1] + 0.0, p[2] + 0.0, p[3] + 0.0, 0.75, item.model, false, false, false)
+        if obj and obj ~= 0 and not used[obj] and DoesEntityExist(obj) and
+            (GetEntityModel(obj) & 0xffffffff) == (item.model & 0xffffffff) and
+            not DoesEntityBelongToThisScript(obj, true) then
+            local at = GetEntityCoords(obj)
+            local dx, dy, dz = at.x - p[1], at.y - p[2], at.z - p[3]
+            if dx * dx + dy * dy + dz * dz <= 0.75 * 0.75 then
+                local qx, qy, qz, qw = GetEntityQuaternion(obj)
+                used[obj] = true
+                group.objects[#group.objects + 1] = { h = obj, model = item.model, pos = { at.x, at.y, at.z }, rot = { qx, qy, qz, qw } }
+                if item.index == anchorIndex then
+                    group.anchor = obj
+                    group.origin = { at.x, at.y, at.z }
+                end
+            else
+                missing = missing + 1
+            end
+        else
+            missing = missing + 1
+        end
+        if index % 25 == 0 then Wait(0) end
+    end
+    if not group.anchor then return nil, missing end
+    PV.group = group
+    return group.anchor, missing
+end
+
+function PV.MoveGroup(anchorPos)
+    local group = PV.group
+    if not group then return end
+    local origin = group.origin
+    local dx, dy, dz = anchorPos.x - origin[1], anchorPos.y - origin[2], anchorPos.z - origin[3]
+    for _, item in ipairs(group.objects) do
+        if item.h ~= group.anchor and DoesEntityExist(item.h) and (GetEntityModel(item.h) & 0xffffffff) == (item.model & 0xffffffff) then
+            local p = item.pos
+            SetEntityCoordsNoOffset(item.h, p[1] + dx, p[2] + dy, p[3] + dz, false, false, false)
+        end
+    end
+end
+
+function PV.RestoreGroup()
+    local group = PV.group
+    PV.group = nil
+    if not group then return end
+    for _, item in ipairs(group.objects) do
+        if DoesEntityExist(item.h) and (GetEntityModel(item.h) & 0xffffffff) == (item.model & 0xffffffff) then
+            local p, r = item.pos, item.rot
+            SetEntityCoordsNoOffset(item.h, p[1], p[2], p[3], false, false, false)
+            SetEntityQuaternion(item.h, r[1], r[2], r[3], r[4])
+        end
+    end
+end
+
 function PV.RemoveGhost()
     local g, m = PV.ghost, PV.ghostModel
     PV.ghost = nil
     PV.ghostModel = nil
-    if g and DoesEntityExist(g) and GetEntityModel(g) == m then
-        SetEntityAsMissionEntity(g, false, true)
+    if g and DoesEntityExist(g) and (GetEntityModel(g) & 0xffffffff) == (m & 0xffffffff) then
+        SetEntityAsMissionEntity(g, true, true)
         DeleteEntity(g)
+        if DoesEntityExist(g) then DeleteObject(g) end
     end
+end
+
+function PV.ClearTransform()
+    PV.RemoveGhost()
+    PV.RestoreGroup()
 end
 
 function PV.Reset()
@@ -66,7 +133,7 @@ function PV.Reset()
         unhide(h)
     end
     PV.hides = {}
-    PV.RemoveGhost()
+    PV.ClearTransform()
     CT.ReapplyDecisions()
 end
 
@@ -75,6 +142,6 @@ AddEventHandler('onResourceStop', function(res)
         for _, h in ipairs(PV.hides) do
             unhide(h)
         end
-        PV.RemoveGhost()
+        PV.ClearTransform()
     end
 end)

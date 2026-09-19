@@ -2,6 +2,7 @@ CT.Gizmo = {
     active = false,
     entity = nil,
     mode = 'translate',
+    translateOnly = false,
     pendingMode = nil,
     heldCmd = nil,
     gridSnap = false,
@@ -68,6 +69,7 @@ RegisterKeyMapping('+kkctGizmoTranslate', 'Conflict tool: gizmo move mode', 'key
 
 RegisterCommand('+kkctGizmoRotate', function()
     if not CT.open or CT.typing then return end
+    if GZ.active and GZ.translateOnly then return end
     if not GZ.active and not CT.OcclEdit.active and not CT.CollEdit.active and not CT.FaceSel.moving then
         SendNUIMessage({ action = 'keybind', data = { key = 'mode', value = 'rotate' } })
         return
@@ -165,6 +167,7 @@ local function applyEntityMatrix(entity, view)
 end
 
 function GZ.SetMode(mode)
+    if GZ.active and GZ.translateOnly and mode ~= 'translate' then return end
     GZ.mode = mode
     if not GZ.active then return end
     GZ.pendingMode = mode
@@ -191,6 +194,7 @@ end
 function GZ.Emit()
     if not (GZ.entity and DoesEntityExist(GZ.entity)) then return end
     local p = GetEntityCoords(GZ.entity)
+    CT.Preview.MoveGroup(p)
     local r = GetEntityRotation(GZ.entity, 2)
     local qx, qy, qz, qw = GetEntityQuaternion(GZ.entity)
     SendNUIMessage({ action = 'gizmoTransform', data = { pos = { p.x, p.y, p.z }, rot = { r.x, r.y, r.z }, quat = { qx, qy, qz, qw } } })
@@ -252,7 +256,7 @@ function GZ.Start(entity)
         end
         if GZ.active and session == mySession and GZ.entity == entity then
             GZ.Stop(false)
-            CT.Preview.Reset()
+            CT.Preview.ClearTransform()
             CT.ApplyFocus()
             SendNUIMessage({ action = 'gizmoLost' })
         end
@@ -262,6 +266,7 @@ end
 function GZ.Stop(commit)
     if not GZ.active then return nil end
     GZ.active = false
+    GZ.translateOnly = false
     session = session + 1
     GZ.DragStop()
     CT.mode = 'browse'

@@ -248,6 +248,49 @@ KKCT.ymap = (() => {
         return { buf: KKCT.rsc7.write(res, data), applied: applied.length, missed: missed.length }
     }
 
-    return { parse, patch, hidden }
+    function translate(buf, delta) {
+        if (!Array.isArray(delta) || delta.length !== 3 || !delta.every(Number.isFinite)) throw new Error('invalid YMAP offset')
+        const res = KKCT.rsc7.parse(buf)
+        const data = Buffer.from(res.data)
+        const meta = KKCT.meta.parse(data)
+        const md = meta.readRoot(KKCT.joaatCase('CMapData'))
+        if (!md) throw new Error('no CMapData block')
+
+        function vectorField(item, name, values) {
+            const field = meta.fieldOffset(item.__struct, name)
+            if (!field || (field.type !== meta.T.VEC3 && field.type !== meta.T.VEC4) || !item.__abs || !Array.isArray(values)) {
+                throw new Error(`YMAP ${name} cannot be moved`)
+            }
+            const at = item.__abs + field.offset
+            for (let i = 0; i < 3; i++) data.writeFloatLE(values[i], at + i * 4)
+        }
+
+        let count = 0
+        for (const entity of Array.isArray(md.entities) ? md.entities : []) {
+            if (!entity || !entity.position) continue
+            vectorField(entity, 'position', entity.position.map((value, i) => value + delta[i]))
+            count++
+        }
+        if (!count) throw new Error('YMAP has no objects to move')
+
+        for (const name of ['entitiesExtentsMin', 'entitiesExtentsMax']) {
+            if (md[name]) vectorField(md, name, md[name].map((value, i) => value + delta[i]))
+        }
+        const otherContent = (md.boxOccluders && md.boxOccluders.length) ||
+            (md.occludeModels && md.occludeModels.length) ||
+            (md.carGenerators && md.carGenerators.length) ||
+            md.LODLightsSOA || md.DistantLODLightsSOA
+        for (const name of ['streamingExtentsMin', 'streamingExtentsMax']) {
+            if (!md[name]) continue
+            const values = md[name].map((value, i) => {
+                const moved = value + delta[i]
+                return otherContent ? (name.endsWith('Min') ? Math.min(value, moved) : Math.max(value, moved)) : moved
+            })
+            vectorField(md, name, values)
+        }
+        return { buf: KKCT.rsc7.write(res, data), count }
+    }
+
+    return { parse, patch, translate, hidden }
 })()
 })()

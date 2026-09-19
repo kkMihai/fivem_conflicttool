@@ -15,15 +15,19 @@ export function YmapEditor({ c }: { c: Conflict }) {
     const [query, setQuery] = useState('')
     const [offset, setOffset] = useState(0)
     const [loading, setLoading] = useState(true)
+    const [preparing, setPreparing] = useState(false)
     const [data, setData] = useState<YmapEntitiesData | null>(null)
     const [selected, setSelected] = useState<YmapEntity | null>(null)
     const requestId = useRef(0)
+    const previewRequestId = useRef(0)
 
     useEffect(() => {
         setQuery('')
         setOffset(0)
         setData(null)
         setSelected(null)
+        setPreparing(false)
+        previewRequestId.current++
     }, [resource, rel])
 
     useEffect(() => {
@@ -42,6 +46,17 @@ export function YmapEditor({ c }: { c: Conflict }) {
         if (focusIndex !== null && result.focused) setSelected(result.focused)
     })
 
+    useNuiEvent<{ requestId: number; resource: string; rel: string; entities?: Pick<YmapEntity, 'index' | 'model' | 'pos' | 'rot'>[]; error?: string }>('ymapMovePreviewData', result => {
+        if (result.requestId !== previewRequestId.current || result.resource !== resource || result.rel !== rel) return
+        previewRequestId.current++
+        setPreparing(false)
+        if (result.error) {
+            setNotice(result.error)
+            return
+        }
+        if (result.entities?.length) move(true, result.entities)
+    })
+
     const pick = (entity: YmapEntity) => {
         setSelected(entity)
         fetchNui('collisionBox', { on: true, model: entity.model, pos: entity.pos, quat: entity.rot })
@@ -54,14 +69,18 @@ export function YmapEditor({ c }: { c: Conflict }) {
         useStore.getState().pushHistory({ id: `ymap-prop|${resource}|${rel}|${selected.index}`, label: selected.name, action: 'remove' })
     }
 
-    const move = async () => {
-        if (!selected || !resource || !rel || transform) return
+    const move = async (all = false, group?: Pick<YmapEntity, 'index' | 'model' | 'pos' | 'rot'>[]) => {
+        const anchor = all ? selected ?? data?.anchor : selected
+        if (!anchor || !resource || !rel || transform) return
         const result = await fetchNui<{ ok?: boolean; reason?: string; pos?: [number, number, number] }>('startTransform', {
-            model: selected.model,
-            pos: selected.pos,
-            rot: selected.rot,
+            model: anchor.model,
+            pos: anchor.pos,
+            rot: anchor.rot,
             radius: 0.5,
-            spots: [{ model: selected.model, pos: selected.pos }]
+            spots: [{ model: anchor.model, pos: anchor.pos }],
+            translateOnly: all,
+            group,
+            anchorIndex: anchor.index
         })
         if (!result?.ok) {
             if (result?.reason) setNotice(result.reason)
@@ -69,17 +88,33 @@ export function YmapEditor({ c }: { c: Conflict }) {
         }
         useStore.setState({
             transform: {
-                conflictId: `ymap-prop|${resource}|${rel}|${selected.index}`,
-                model: selected.model,
-                name: selected.name,
-                pos: result.pos ?? selected.pos,
+                conflictId: all ? c.id : `ymap-prop|${resource}|${rel}|${anchor.index}`,
+                model: anchor.model,
+                name: all ? c.title : anchor.name,
+                pos: result.pos ?? anchor.pos,
                 rot: [0, 0, 0],
-                quat: selected.rot,
+                quat: anchor.rot,
                 mode: 'translate',
                 grid: false,
-                ymap: { resource, rel, entity: selected }
+                ...(all
+                    ? { ymapAll: { resource, rel, anchor: result.pos ?? anchor.pos } }
+                    : { ymap: { resource, rel, entity: anchor } })
             }
         })
+    }
+
+    const moveAll = () => {
+        if (!resource || !rel || !data?.anchor || transform || preparing) return
+        const id = ++previewRequestId.current
+        setPreparing(true)
+        fetchNui('ymapMovePreview', { resource, rel, requestId: id })
+        window.setTimeout(() => {
+            if (previewRequestId.current === id) {
+                previewRequestId.current++
+                setPreparing(false)
+                setNotice('The YMAP preview timed out. Try again.')
+            }
+        }, 30000)
     }
 
     const entities = data?.entities ?? []
@@ -88,6 +123,9 @@ export function YmapEditor({ c }: { c: Conflict }) {
     return (
         <div className="mx-3 mt-2.5 space-y-2">
             <div className="text-2xs font-bold">YMAP props</div>
+            <Button className="w-full" size="sm" variant="secondary" onClick={moveAll} disabled={!data?.anchor || !!transform || preparing}>
+                <ArrowsOutCardinal /> {preparing ? 'Loading objects…' : 'Move all objects'}
+            </Button>
             <Input
                 aria-label="Search props in this YMAP"
                 placeholder="Model name, hash, or row…"
@@ -107,7 +145,7 @@ export function YmapEditor({ c }: { c: Conflict }) {
                         <Button size="sm" variant="secondary" onClick={() => fetchNui('teleportTo', { pos: selected.pos })} title="Go to this prop">
                             <Crosshair /> Go
                         </Button>
-                        <Button size="sm" variant="secondary" onClick={move} disabled={!!transform}>
+                        <Button size="sm" variant="secondary" onClick={() => move()} disabled={!!transform}>
                             <ArrowsOutCardinal /> Move
                         </Button>
                         <Button size="sm" variant="destructive" onClick={remove} disabled={!!transform}>

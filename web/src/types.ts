@@ -36,6 +36,7 @@ export interface YmapEntitiesData {
     total?: number
     offset?: number
     entities?: YmapEntity[]
+    anchor?: YmapEntity | null
     focused?: YmapEntity | null
     error?: string
 }
@@ -310,4 +311,5 @@ export interface TransformState {
     mode: 'translate' | 'rotate'
     grid: boolean
     ymap?: { resource: string; rel: string; entity: YmapEntity }
+    ymapAll?: { resource: string; rel: string; anchor: [number, number, number] }
 }

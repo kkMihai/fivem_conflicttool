@@ -249,6 +249,10 @@ export default function App() {
 
     useNuiEvent<string>('notice', msg => useStore.getState().setNotice(msg))
 
+    useNuiEvent<{ conflictId: string; file: string }>('ymapMoveQueued', d => {
+        useStore.getState().pushHistory({ id: d.conflictId, label: d.file, action: 'move all' })
+    })
+
     useNuiEvent<{ conflictId: string | null; boxes: NonNullable<Conflict['boxes']> }>('occlPreview', d => {
         if (!d?.conflictId || !d.boxes) return
         const s = useStore.getState()
@@ -322,7 +326,7 @@ export default function App() {
 
     useNuiEvent<'translate' | 'rotate' | 'scale'>('gizmoMode', mode => {
         const t = useStore.getState().transform
-        if (t && mode !== 'scale') useStore.setState({ transform: { ...t, mode } })
+        if (t && mode !== 'scale' && !(t.ymapAll && mode === 'rotate')) useStore.setState({ transform: { ...t, mode } })
     })
 
     useNuiEvent<{ key: string; value?: any }>('keybind', d => {

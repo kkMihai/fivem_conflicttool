@@ -14,7 +14,7 @@ In-game map conflict scanner and resolver for FiveM. It scans every started reso
 - **Occluder tools**: shrink one box until the overlap clears, remove a single box, or merge a whole cluster into one volume.
 - **In-game occluder editor**: move, rotate and resize a box with the gizmo, or right click one face to extrude just that side.
 - **In-game collision editor**: every readable `.ybn` in a stream folder is listed in the Collision tab, even without a conflict. Move and rotate a bound with the gizmo, or move the whole file as one, with the mesh following the drag live.
-- **In-game YMAP editor**: every readable streamed YMAP with props is listed as an editable file. Search its props by model, select one in the list or world, then move or remove it even when no map conflict was detected.
+- **In-game YMAP editor**: every readable streamed YMAP with props is listed as an editable file. Search its props by model, select one in the list or world, then move or remove it, or use it as an anchor to move every object in the YMAP by the same offset. Resolve writes the file with a backup.
 - **Collision surfaces**: set any material slot from the full GTA V surface list, plus the sixteen collision flags such as see through, shoot through, walkable path and no navmesh.
 - **Face editing**: collision faces draw in their surface colour, the same colours Sollumz uses in Blender. Select faces to paint, move, rotate or remove them, including from a queued merged YBN before Resolve writes it.
 - **Face moving**: grab a face selection with the gizmo and move or rotate the geometry itself.

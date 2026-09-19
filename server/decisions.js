@@ -125,13 +125,14 @@ KKCT.decisions = (() => {
             conflictId: d.conflictId || null,
             action: d.action === 'merge' && d.merge && d.merge.group
                 ? 'merge'
-                : d.action === 'bury' || d.action === 'clip' || d.action === 'ybn' ? d.action : 'disable',
+                : d.action === 'bury' || d.action === 'clip' || d.action === 'ybn' || d.action === 'ymap-move' ? d.action : 'disable',
             file: d.file,
             loser: d.loser,
             winner: d.winner || null,
             entity: d.entity || null,
             box: d.box || null,
             ybn: d.ybn || null,
+            ymapMove: d.ymapMove || null,
             merge: d.merge && d.merge.group ? d.merge : null,
             state: 'pending',
             bundleId: null,

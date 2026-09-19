@@ -4,7 +4,7 @@ const vm = require('vm')
 const path = require('path').posix
 const crypto = require('crypto')
 
-function resolverWithFiles(files, decisions) {
+function resolverWithFiles(files, decisions, options = {}) {
     const contents = new Map(Object.entries(files).map(([name, value]) => [name, Buffer.from(value)]))
     const fakeFs = {
         existsSync: name => contents.has(name),
@@ -15,7 +15,7 @@ function resolverWithFiles(files, decisions) {
         },
         writeFileSync: (name, value) => contents.set(name, Buffer.from(value)),
         copyFileSync: (src, dest) => {
-            if (dest === '/resources/map/stream/tree.ymap') throw Object.assign(new Error('permission denied'), { code: 'EACCES' })
+            if (options.denyWrite !== false && dest === '/resources/map/stream/tree.ymap') throw Object.assign(new Error('permission denied'), { code: 'EACCES' })
             contents.set(dest, Buffer.from(contents.get(src)))
         },
         unlinkSync: name => contents.delete(name),
@@ -25,7 +25,7 @@ function resolverWithFiles(files, decisions) {
     const context = {
         KKCT: {
             decisions,
-            ymap: { patch: () => ({ buf: Buffer.from('patched') }), parse: () => ({ entities: [] }) }
+            ymap: options.ymap || { patch: () => ({ buf: Buffer.from('patched') }), parse: () => ({ entities: [] }) }
         },
         Buffer,
         console,
@@ -75,5 +75,35 @@ describe('resolver write permissions', () => {
         expect(result.permissionResources).toEqual(['map'])
         expect(job.state).toBe('live')
         expect(setup.contents.get('/resources/map/stream/tree.ymap').toString()).toBe('original')
+    })
+})
+
+describe('whole YMAP resolve', () => {
+    test('writes the translated file and keeps its original backup', async () => {
+        const original = JSON.stringify([[1, 2, 3], [4, 5, 6]])
+        const job = {
+            id: 'decision-2', conflictId: 'ymap-1', action: 'ymap-move', file: 'tree.ymap',
+            loser: { resource: 'map', rel: 'stream/tree.ymap' },
+            ymapMove: { delta: [10, -2, 5] }, state: 'pending'
+        }
+        const decisions = {
+            pendingAssets: () => [job],
+            assets: () => [job],
+            entities: () => [],
+            entityFileJobs: () => [],
+            get: () => ({}),
+            save: () => {}
+        }
+        const ymap = {
+            parse: buf => ({ entities: JSON.parse(buf.toString()).map(p => ({ p })) }),
+            translate: (buf, delta) => ({ buf: Buffer.from(JSON.stringify(JSON.parse(buf.toString()).map(p => p.map((v, i) => v + delta[i])))) })
+        }
+        const setup = resolverWithFiles({ '/resources/map/stream/tree.ymap': original }, decisions, { denyWrite: false, ymap })
+        const result = await setup.resolver.apply(() => {})
+        expect(result.errors).toEqual([])
+        expect(result.conflictIds).toEqual(['ymap-1'])
+        expect(job.state).toBe('applied')
+        expect(JSON.parse(setup.contents.get('/resources/map/stream/tree.ymap').toString())).toEqual([[11, 0, 8], [14, 3, 11]])
+        expect([...setup.contents.values()].some(value => value.toString() === original)).toBe(true)
     })
 })
