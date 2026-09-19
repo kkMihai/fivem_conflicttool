@@ -14,6 +14,7 @@ interface StoreState {
     scanMeta: ScanMeta | null
     parseErrors: { resource: string; file: string; msg: string; escrowed?: boolean }[]
     issuesOpen: boolean
+    exportOpen: boolean
     decisions: DecisionsMeta
     backups: Backup[]
     scanning: boolean
@@ -153,6 +154,7 @@ export const useStore = create<StoreState>((set, get) => ({
     scanMeta: isEnvBrowser() ? mockState.scanMeta : null,
     parseErrors: [],
     issuesOpen: false,
+    exportOpen: false,
     decisions: isEnvBrowser() ? mockState.decisions : { entities: 0, assetsPending: 0, assetsApplied: 0, entityFilePending: 0, updatedAt: null },
     backups: isEnvBrowser() ? mockState.backups : [],
     scanning: false,

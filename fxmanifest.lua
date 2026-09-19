@@ -44,6 +44,7 @@ server_scripts {
     'server/lib/ybn.js',
     'server/lib/collision.js',
     'server/lib/assetkind.js',
+    'server/lib/scanexport.js',
     'server/lib/occlusion.js',
     'server/lib/names.js',
     'server/decisions.js',

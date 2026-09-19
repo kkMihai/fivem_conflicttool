@@ -270,6 +270,28 @@ onNet('kk_ct:scan', () => {
     startScan(src)
 })
 
+onNet('kk_ct:exportScan', d => {
+    const src = source
+    if (!allowed(src) || !d || typeof d !== 'object') return
+    const scan = KKCT.scanner.last()
+    if (!scan || d.scanId !== scan.scanId) {
+        emitNet('kk_ct:exportScanResult', src, { requestId: d.requestId, ok: false, reason: 'Run a fresh scan before exporting.' })
+        return
+    }
+    try {
+        const file = KKCT.scanexport.save(ROOT, scan.scanId, d.format, d.content)
+        emitNet('kk_ct:exportScanResult', src, { requestId: d.requestId, ok: true, path: file })
+    } catch (e) {
+        console.log(`[fivem_conflicttool] scan export failed: ${e.message}`)
+        const permission = e.code === 'EACCES' || e.code === 'EPERM'
+        emitNet('kk_ct:exportScanResult', src, {
+            requestId: d.requestId,
+            ok: false,
+            reason: permission ? 'Cannot write to fivem_conflicttool/exports. Check the resource folder permissions.' : e.message
+        })
+    }
+})
+
 onNet('kk_ct:decide', d => {
     const src = source
     if (!allowed(src)) return

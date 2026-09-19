@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Archive, ArrowClockwise, ArrowsClockwise, ArrowsOutCardinal, Binoculars, CheckCircle, Cube, HardDrives, Lightning, MapPin, Scan } from '@phosphor-icons/react'
+import { Archive, ArrowClockwise, ArrowsClockwise, ArrowsOutCardinal, Binoculars, CheckCircle, Cube, DownloadSimple, HardDrives, Lightning, MapPin, Scan } from '@phosphor-icons/react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { useStore } from '@/store/use-store'
 import { fetchNui } from '@/lib/nui'
@@ -110,6 +110,7 @@ export function Toolbar() {
             </DropdownMenu>
             <ToolItem icon={<Archive />} label="Backups" title="Apply bundles and restore" onClick={() => useStore.setState({ backupsOpen: true })} />
             <ToolItem icon={<HardDrives />} label="Weight" title="Streaming weight per resource" onClick={() => useStore.setState({ weightsOpen: true })} />
+            <ToolItem icon={<DownloadSimple />} label="Export" disabled={!scanMeta} title="Copy or export scan results" onClick={() => useStore.setState({ exportOpen: true })} />
             <Sep />
             <ToolItem icon={<Cube />} label={`Coll (${collCount})`} active={collViz} title="Draw all conflicting collision meshes" onClick={toggleCollViz} />
             <ToolItem icon={<MapPin />} label="Markers" active={worldVisuals} title="Toggle in-world markers and meshes" onClick={toggleWorldVisuals} />

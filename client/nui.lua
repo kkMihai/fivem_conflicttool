@@ -21,6 +21,11 @@ RegisterNUICallback('requestScan', function(data, cb)
     TriggerServerEvent('kk_ct:scan', data and data.force or false)
 end)
 
+RegisterNUICallback('exportScan', function(data, cb)
+    cb(true)
+    TriggerLatentServerEvent('kk_ct:exportScan', 2000000, data)
+end)
+
 RegisterNUICallback('ymapEntities', function(data, cb)
     cb(true)
     TriggerServerEvent('kk_ct:ymapEntities', data)
@@ -531,6 +536,10 @@ end)
 
 RegisterNetEvent('kk_ct:scanError', function(err)
     nuiSend('scanError', err)
+end)
+
+RegisterNetEvent('kk_ct:exportScanResult', function(result)
+    nuiSend('exportScanResult', result)
 end)
 
 RegisterNetEvent('kk_ct:applyProgress', function(p)

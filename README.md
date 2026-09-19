@@ -22,6 +22,8 @@ In-game map conflict scanner and resolver for FiveM. It scans every started reso
 - **World display**: every conflict gets a color-coded beam, collision meshes draw in red and box occluders in amber, and X-ray shows all of it through walls and terrain.
 - **World action menu**: right click a marker, an occluder box or a collision bound for the actions that apply to it.
 - **Filters**: narrow the list by resource, file type or asset kind.
+- **Scan export**: copy the scan list or save it in `fivem_conflicttool/exports` as CSV, JSON, Markdown or plain text. Export the full scan or current filters and choose the columns.
+- **Scan warnings**: the scan shows unreadable files and resources with escrow markers, so protected map files are easy to spot.
 - **In-game editing**: move and rotate objects with the native gizmo, with local or global axes, grid snap, snap to ground and numeric transform inputs.
 - **Streaming weight**: per-resource map asset size ranking, with a warning for files over 16 MB that may fail to stream.
 - **Undo and restore**: Ctrl+Z undoes a decision, and Apply copies every touched file into timestamped backup bundles that restore with sha1 verification.
@@ -210,6 +212,8 @@ Binds are remappable in FiveM Settings, under Key Bindings, FiveM. Key mappings 
 3. Decide with **Keep**, **Move** or **Remove**, or use **Auto** for the safe cases. Right clicking a marker offers the same actions in the world.
 4. Run **Resolve** to apply the queued decisions. Fixed conflicts pulse green and their markers clear.
 5. Run **Scan** again so the list matches the files on disk.
+
+To edit a prop without a conflict, choose **Editable stream files only** in the list filter and open a YMAP under **Prop**. Pick a prop, then use **Move** or **Remove**. Clicking a streamed prop in the world can open its YMAP directly. Resolve writes the edit to the original file, and Backups keeps a restore copy. The **Export** button copies the scan list or saves it in `fivem_conflicttool/exports`. Open the unreadable count at the bottom of the list for file and escrow warnings.
 
 Entity decisions apply live for everyone. File changes take effect after a server restart. **Backups** lists every apply bundle with a restore button, and **Weight** ranks resources by streaming size.
 

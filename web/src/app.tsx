@@ -6,6 +6,7 @@ import { Toolbar } from '@/components/overlay/toolbar'
 import { BackupsDialog } from '@/components/dialogs/backups-dialog'
 import { WeightsDialog } from '@/components/dialogs/weights-dialog'
 import { ScanIssuesDialog } from '@/components/dialogs/scan-issues-dialog'
+import { ExportDialog } from '@/components/dialogs/export-dialog'
 import { ApplyModal } from '@/components/dialogs/apply-modal'
 import { ScanProgress } from '@/components/overlay/scan-progress'
 import { Legend } from '@/components/overlay/legend'
@@ -609,6 +610,7 @@ export default function App() {
             <BackupsDialog />
             <WeightsDialog />
             <ScanIssuesDialog />
+            <ExportDialog />
             <ApplyModal />
         </div>
     )

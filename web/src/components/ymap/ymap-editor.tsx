@@ -118,17 +118,17 @@ export function YmapEditor({ c }: { c: Conflict }) {
             )}
             <div className="space-y-1" role="list" aria-label="Props in YMAP">
                 {entities.map(entity => (
-                    <button
-                        key={entity.index}
-                        type="button"
-                        role="listitem"
-                        aria-pressed={selected?.index === entity.index}
-                        onClick={() => pick(entity)}
-                        className={`w-full rounded-md border p-2 text-left transition-colors duration-150 cursor-pointer ${selected?.index === entity.index ? 'border-ring bg-accent' : 'border-border bg-card hover:bg-accent'}`}
-                    >
-                        <span className="block truncate font-mono text-2xs" title={entity.name}>{entity.name}</span>
-                        <span className="block truncate font-mono text-3xs text-muted-foreground">#{entity.index + 1} · {entity.pos.map(value => value.toFixed(1)).join(', ')}</span>
-                    </button>
+                    <div key={entity.index} role="listitem">
+                        <button
+                            type="button"
+                            aria-pressed={selected?.index === entity.index}
+                            onClick={() => pick(entity)}
+                            className={`w-full rounded-md border p-2 text-left transition-colors duration-150 cursor-pointer ${selected?.index === entity.index ? 'border-ring bg-accent' : 'border-border bg-card hover:bg-accent'}`}
+                        >
+                            <span className="block truncate font-mono text-2xs" title={entity.name}>{entity.name}</span>
+                            <span className="block truncate font-mono text-3xs text-muted-foreground">#{entity.index + 1} · {entity.pos.map(value => value.toFixed(1)).join(', ')}</span>
+                        </button>
+                    </div>
                 ))}
             </div>
             {total > 80 && (
