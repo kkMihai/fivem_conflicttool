@@ -129,6 +129,8 @@ export interface ScanMeta {
     ignoredCount?: number
     hiddenCount?: number
     parseErrorCount: number
+    escrowedCount?: number
+    escrowedResources?: string[]
 }
 
 export interface ResourceWeight {
@@ -145,7 +147,8 @@ export interface ScanPayload {
     resourceCount: number
     modPackCount: number
     fileCount: number
-    parseErrors: { resource: string; file: string; msg: string }[]
+    parseErrors: { resource: string; file: string; msg: string; escrowed?: boolean }[]
+    escrowedResources?: string[]
     conflicts: Conflict[]
     weights?: ResourceWeight[]
 }

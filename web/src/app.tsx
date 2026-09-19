@@ -5,6 +5,7 @@ import { TransformPanel } from '@/components/overlay/transform-panel'
 import { Toolbar } from '@/components/overlay/toolbar'
 import { BackupsDialog } from '@/components/dialogs/backups-dialog'
 import { WeightsDialog } from '@/components/dialogs/weights-dialog'
+import { ScanIssuesDialog } from '@/components/dialogs/scan-issues-dialog'
 import { ApplyModal } from '@/components/dialogs/apply-modal'
 import { ScanProgress } from '@/components/overlay/scan-progress'
 import { Legend } from '@/components/overlay/legend'
@@ -150,7 +151,7 @@ export default function App() {
             }
             const payload = (await decodeChunks(parts)) as ScanPayload
             useStore.getState().setConflicts(payload.conflicts)
-            useStore.setState({ weights: payload.weights ?? [] })
+            useStore.setState({ weights: payload.weights ?? [], parseErrors: payload.parseErrors ?? [] })
         } catch (e) {
             console.error('scan payload decode failed', e)
         } finally {
@@ -598,6 +599,7 @@ export default function App() {
             <Dock />
             <BackupsDialog />
             <WeightsDialog />
+            <ScanIssuesDialog />
             <ApplyModal />
         </div>
     )

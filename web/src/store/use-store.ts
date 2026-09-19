@@ -12,6 +12,8 @@ interface StoreState {
     visible: boolean
     version: VersionInfo | null
     scanMeta: ScanMeta | null
+    parseErrors: { resource: string; file: string; msg: string; escrowed?: boolean }[]
+    issuesOpen: boolean
     decisions: DecisionsMeta
     backups: Backup[]
     scanning: boolean
@@ -149,6 +151,8 @@ export const useStore = create<StoreState>((set, get) => ({
         ? { current: __APP_VERSION__, latest: '9.9.9', updateAvailable: true, url: 'https://github.com/kkMihai/fivem_conflicttool/releases/latest', checkedAt: Date.now(), error: null }
         : null,
     scanMeta: isEnvBrowser() ? mockState.scanMeta : null,
+    parseErrors: [],
+    issuesOpen: false,
     decisions: isEnvBrowser() ? mockState.decisions : { entities: 0, assetsPending: 0, assetsApplied: 0, entityFilePending: 0, updatedAt: null },
     backups: isEnvBrowser() ? mockState.backups : [],
     scanning: false,

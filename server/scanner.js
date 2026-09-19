@@ -132,6 +132,7 @@ KKCT.scanner = (() => {
                 if (!rpath) continue
                 resources.push({ name, path: rpath.replace(/\//g, path.sep), order: i })
             }
+            const escrowedResources = new Set(resources.filter(r => fs.existsSync(path.join(r.path, '.fxap'))).map(r => r.name))
 
             const files = []
             let walked = 0
@@ -222,7 +223,7 @@ KKCT.scanner = (() => {
             for (let i = 0; i < files.length; i++) {
                 const r = results[i]
                 if (!r) continue
-                if (r.err) parseErrors.push(r.err)
+                if (r.err) parseErrors.push({ ...r.err, escrowed: escrowedResources.has(r.err.resource) })
                 if (!r.entry) continue
                 const key = path.basename(files[i].abs).toLowerCase()
                 if (!index.has(key)) index.set(key, [])
@@ -260,6 +261,9 @@ KKCT.scanner = (() => {
                 modPackCount: modPacks.size,
                 fileCount: files.length,
                 parseErrors: parseErrors.slice(0, 200),
+                parseErrorCount: parseErrors.length,
+                escrowedCount: parseErrors.filter(error => error.escrowed).length,
+                escrowedResources: [...escrowedResources].sort(),
                 conflicts,
                 weights,
                 index

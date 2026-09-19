@@ -24,6 +24,9 @@ function stripForClient(scan) {
         resourceCount: scan.resourceCount,
         modPackCount: scan.modPackCount,
         fileCount: scan.fileCount,
+        parseErrorCount: scan.parseErrorCount,
+        escrowedCount: scan.escrowedCount,
+        escrowedResources: scan.escrowedResources,
         parseErrors: scan.parseErrors,
         conflicts: scan.conflicts,
         weights: scan.weights ?? []
@@ -65,7 +68,9 @@ function scanMeta(scan) {
         newCount,
         ignoredCount,
         hiddenCount,
-        parseErrorCount: scan.parseErrors.length
+        parseErrorCount: scan.parseErrorCount,
+        escrowedCount: scan.escrowedCount,
+        escrowedResources: scan.escrowedResources
     }
 }
 

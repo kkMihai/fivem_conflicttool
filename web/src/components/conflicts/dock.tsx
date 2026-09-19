@@ -210,7 +210,16 @@ function DockFooter() {
             )}
             <div className="flex items-center gap-2 border-t border-border px-3 py-1 text-3xs text-muted-foreground">
                 {scanMeta && <span>{scanMeta.modPackCount} mod packs</span>}
-                {scanMeta && scanMeta.parseErrorCount > 0 && <span className="text-cat-occl">{scanMeta.parseErrorCount} unreadable</span>}
+                {scanMeta && (scanMeta.parseErrorCount > 0 || (scanMeta.escrowedResources?.length ?? 0) > 0) && (
+                    <button
+                        type="button"
+                        onClick={() => useStore.setState({ issuesOpen: true })}
+                        className="min-h-6 rounded-sm text-cat-occl underline-offset-2 hover:underline cursor-pointer"
+                        title="Show unreadable files and protected resources"
+                    >
+                        {scanMeta.parseErrorCount > 0 ? `${scanMeta.parseErrorCount} unreadable` : `${scanMeta.escrowedResources?.length} protected`}
+                    </button>
+                )}
                 {idx >= 0 && (
                     <span className="ml-auto font-mono">
                         [{idx + 1}/{list.length}]
