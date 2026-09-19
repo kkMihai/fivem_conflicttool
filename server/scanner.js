@@ -65,19 +65,23 @@ KKCT.scanner = (() => {
         } catch {}
     }
 
-    async function walk(dir, out, depth, metas) {
-        if (depth > 12) return
+    async function walk(dir, depth, metas, readDir) {
+        if (depth > 12) return []
         let entries
         try {
-            entries = await fsp.readdir(dir, { withFileTypes: true })
+            entries = await readDir(dir)
         } catch {
-            return
+            return []
         }
-        for (const e of entries) {
+        const children = entries.map(e => e.isDirectory() && !SKIP_DIRS.has(e.name.toLowerCase())
+            ? walk(path.join(dir, e.name), depth + 1, metas, readDir)
+            : null)
+        const childResults = await Promise.all(children.map(child => child || []))
+        const out = []
+        for (let i = 0; i < entries.length; i++) {
+            const e = entries[i]
             if (e.isDirectory()) {
-                if (!SKIP_DIRS.has(e.name.toLowerCase())) {
-                    await walk(path.join(dir, e.name), out, depth + 1, metas)
-                }
+                for (const file of childResults[i]) out.push(file)
             } else {
                 const lower = e.name.toLowerCase()
                 const ext = path.extname(lower)
@@ -88,6 +92,7 @@ KKCT.scanner = (() => {
                 }
             }
         }
+        return out
     }
 
     function sha1(buf) {
@@ -138,10 +143,22 @@ KKCT.scanner = (() => {
             let walked = 0
             progress({ phase: 'walk', resource: '', current: 0, total: resources.length })
             const kinds = KKCT.assetkind.create()
+            let activeReads = 0
+            const pendingReads = []
+            async function readDir(dir) {
+                if (activeReads >= 32) await new Promise(resolve => pendingReads.push(resolve))
+                else activeReads++
+                try {
+                    return await fsp.readdir(dir, { withFileTypes: true })
+                } finally {
+                    const next = pendingReads.shift()
+                    if (next) next()
+                    else activeReads--
+                }
+            }
             const walkResults = await pmap(resources, 8, async r => {
-                const found = []
                 const metas = []
-                await walk(r.path, found, 0, metas)
+                const found = await walk(r.path, 0, metas, readDir)
                 kinds.addResource(r.name, metas, r.path)
                 walked++
                 if (walked % 10 === 0) {
