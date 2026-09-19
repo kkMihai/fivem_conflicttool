@@ -20,6 +20,26 @@ export interface ConflictEntity {
     radius: number
 }
 
+export interface YmapEntity {
+    index: number
+    model: number
+    name: string
+    guid: number
+    pos: [number, number, number]
+    rot: [number, number, number, number]
+}
+
+export interface YmapEntitiesData {
+    requestId: number
+    resource?: string
+    rel?: string
+    total?: number
+    offset?: number
+    entities?: YmapEntity[]
+    focused?: YmapEntity | null
+    error?: string
+}
+
 export interface Conflict {
     id: string
     key: string
@@ -286,4 +306,5 @@ export interface TransformState {
     quat: [number, number, number, number]
     mode: 'translate' | 'rotate'
     grid: boolean
+    ymap?: { resource: string; rel: string; entity: YmapEntity }
 }

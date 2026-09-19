@@ -21,6 +21,21 @@ RegisterNUICallback('requestScan', function(data, cb)
     TriggerServerEvent('kk_ct:scan', data and data.force or false)
 end)
 
+RegisterNUICallback('ymapEntities', function(data, cb)
+    cb(true)
+    TriggerServerEvent('kk_ct:ymapEntities', data)
+end)
+
+RegisterNUICallback('findYmapProp', function(data, cb)
+    cb(true)
+    TriggerServerEvent('kk_ct:findYmapProp', data)
+end)
+
+RegisterNUICallback('editYmapProp', function(data, cb)
+    cb(true)
+    TriggerServerEvent('kk_ct:editYmapProp', data)
+end)
+
 RegisterNUICallback('setMarkers', function(data, cb)
     cb(true)
     local markers = (data and data.markers) or {}
@@ -536,6 +551,19 @@ end)
 
 RegisterNetEvent('kk_ct:notice', function(msg)
     nuiSend('notice', msg)
+end)
+
+RegisterNetEvent('kk_ct:ymapEntitiesData', function(data)
+    nuiSend('ymapEntitiesData', data)
+end)
+
+RegisterNetEvent('kk_ct:ymapPropFound', function(data)
+    nuiSend('ymapPropFound', data)
+end)
+
+RegisterNetEvent('kk_ct:ymapEditQueued', function(data)
+    nuiSend('ymapEditQueued', data)
+    CT.VerifyRemoval(data)
 end)
 
 RegisterNetEvent('kk_ct:occlPreview', function(data)

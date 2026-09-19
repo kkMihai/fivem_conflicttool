@@ -164,7 +164,7 @@ export default function App() {
 
     useNuiEvent<any>('scanError', () => useStore.setState({ scanning: false, scanProgress: null }))
 
-    useNuiEvent<{ id?: string; model?: number; hit?: number[] }>('worldSelect', d => {
+    useNuiEvent<{ id?: string; model?: number; hit?: number[]; pos?: number[] }>('worldSelect', d => {
         const s = useStore.getState()
         if (d.id) {
             s.select(d.id, false)
@@ -172,7 +172,10 @@ export default function App() {
         }
         if (!d.model) return
         const candidates = s.conflicts.filter(c => c.entity?.model === d.model || c.target?.model === d.model)
-        if (!candidates.length) return
+        if (!candidates.length) {
+            if (d.pos) fetchNui('findYmapProp', { model: d.model, pos: d.pos })
+            return
+        }
         let best = candidates[0]
         if (d.hit && candidates.length > 1) {
             let bestDist = Infinity
@@ -188,7 +191,30 @@ export default function App() {
                 }
             }
         }
+        if (d.pos && best.pos) {
+            const distance = best.pos.reduce((sum, value, axis) => sum + (value - d.pos![axis]) ** 2, 0)
+            if (distance > 25) {
+                fetchNui('findYmapProp', { model: d.model, pos: d.pos })
+                return
+            }
+        }
         s.select(best.id, false)
+    })
+
+    useNuiEvent<{ key?: string; index?: number; error?: string }>('ymapPropFound', d => {
+        const s = useStore.getState()
+        if (!d?.key) {
+            if (d?.error) s.setNotice(d.error)
+            return
+        }
+        const c = s.conflicts.find(conflict => conflict.key === d.key)
+        if (!c) {
+            s.setNotice('This YMAP is not in the current scan. Run a fresh scan.')
+            return
+        }
+        useStore.setState({ itemFilter: 'editable', tab: 'prop', search: '', resourceFilter: null, showVanilla: true })
+        s.select(c.id, false)
+        useStore.setState({ ymapPickIndex: d.index ?? null })
     })
 
     useNuiEvent<{ id: string; bx?: number; cbx?: number; x: number; y: number }>('worldContext', d => {

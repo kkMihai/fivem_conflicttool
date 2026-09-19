@@ -46,8 +46,10 @@ function scanMeta(scan) {
             hiddenCount++
             continue
         }
-        if (c.kind !== 'collision-file' && c.kind !== 'occlusion-file') counts.all++
-        counts[c.cat] = (counts[c.cat] || 0) + 1
+        if (c.kind !== 'collision-file' && c.kind !== 'occlusion-file' && c.kind !== 'ymap-file') {
+            counts.all++
+            counts[c.cat] = (counts[c.cat] || 0) + 1
+        }
         if (c.autoRes) autoRes++
         if (c.isNew) newCount++
     }
@@ -148,6 +150,102 @@ function startScan(src) {
         emitNet('kk_ct:scanError', src, { msg: e.message })
     })
 }
+
+function editableYmap(resource, rel) {
+    const scan = KKCT.scanner.last()
+    if (!scan || typeof resource !== 'string' || typeof rel !== 'string') return null
+    const entries = scan.index.get(path.basename(rel).toLowerCase()) || []
+    return entries.find(e => e.resource === resource && e.rel === rel && e.inStream && e.ext === 'ymap' && e.parsed && !e.parseError) || null
+}
+
+onNet('kk_ct:ymapEntities', d => {
+    const src = source
+    if (!allowed(src) || !d || typeof d !== 'object') return
+    const entry = editableYmap(d.resource, d.rel)
+    if (!entry) {
+        emitNet('kk_ct:ymapEntitiesData', src, { requestId: d.requestId, resource: d.resource, rel: d.rel, error: 'This YMAP is unavailable. Run a fresh scan.' })
+        return
+    }
+    const query = String(d.query || '').trim().toLowerCase().slice(0, 80)
+    const offset = Math.max(0, Math.floor(Number(d.offset) || 0))
+    const matches = []
+    for (const [index, entity] of entry.parsed.entities.entries()) {
+        if (entity.mlo) continue
+        const name = KKCT.names.resolve(entity.a)
+        if (query && !name.toLowerCase().includes(query) && !String(entity.a).includes(query) && !String(index + 1).includes(query)) continue
+        matches.push({ index, model: entity.a, name, guid: entity.g, pos: entity.p, rot: entity.r })
+    }
+    const focusIndex = Number(d.focusIndex)
+    const focusedEntity = Number.isInteger(focusIndex) ? entry.parsed.entities[focusIndex] : null
+    const focused = focusedEntity && !focusedEntity.mlo
+        ? { index: focusIndex, model: focusedEntity.a, name: KKCT.names.resolve(focusedEntity.a), guid: focusedEntity.g, pos: focusedEntity.p, rot: focusedEntity.r }
+        : null
+    const payload = { requestId: d.requestId, resource: entry.resource, rel: entry.rel, total: matches.length, offset, entities: matches.slice(offset, offset + 80), focused }
+    TriggerLatentClientEvent('kk_ct:ymapEntitiesData', String(src), 2000000, payload)
+})
+
+onNet('kk_ct:findYmapProp', d => {
+    const src = source
+    if (!allowed(src) || !d || typeof d.model !== 'number' || !Array.isArray(d.pos) || d.pos.length !== 3) return
+    const scan = KKCT.scanner.last()
+    if (!scan) return
+    let best = null
+    let bestDistance = 25
+    for (const [file, entries] of scan.index) {
+        if (!file.endsWith('.ymap')) continue
+        for (const entry of entries) {
+            if (!entry.inStream || !entry.parsed || entry.parseError) continue
+            for (const [index, entity] of entry.parsed.entities.entries()) {
+                if (entity.mlo || entity.a !== (d.model >>> 0)) continue
+                const distance = entity.p.reduce((sum, value, axis) => sum + (value - d.pos[axis]) ** 2, 0)
+                if (distance <= bestDistance) {
+                    bestDistance = distance
+                    best = { key: `edit-ymap|${file}|${entry.resource}|${entry.rel}`, index }
+                }
+            }
+        }
+    }
+    emitNet('kk_ct:ymapPropFound', src, best || { error: 'No editable streamed YMAP matches this prop. Its file may be escrowed or outside the scan.' })
+})
+
+onNet('kk_ct:editYmapProp', d => {
+    const src = source
+    if (!allowed(src) || !d || (d.action !== 'move' && d.action !== 'remove')) return
+    const entry = editableYmap(d.resource, d.rel)
+    const index = Number(d.index)
+    const entity = entry && Number.isInteger(index) ? entry.parsed.entities[index] : null
+    if (!entity || entity.mlo || typeof d.model !== 'number' || entity.a !== (d.model >>> 0)) {
+        emitNet('kk_ct:notice', src, 'This prop changed or is unavailable. Run a fresh scan.')
+        return
+    }
+    const finiteVector = (value, size) => Array.isArray(value) && value.length === size && value.every(n => typeof n === 'number' && Number.isFinite(n))
+    if (!finiteVector(d.pos, 3) || entity.p.some((v, i) => Math.abs(v - d.pos[i]) > 0.05)) {
+        emitNet('kk_ct:notice', src, 'This prop moved since the scan. Run a fresh scan.')
+        return
+    }
+    if (d.action === 'move' && (!d.new || !finiteVector(d.new.pos, 3) || !finiteVector(d.new.rot, 4))) return
+    const decision = {
+        action: d.action,
+        conflictId: `ymap-prop|${entry.resource}|${entry.rel}|${index}`,
+        archetype: KKCT.names.resolve(entity.a),
+        hash: entity.a,
+        guid: entity.g,
+        source: { resource: entry.resource, file: entry.rel },
+        file: entry.rel,
+        targets: [{ resource: entry.resource, rel: entry.rel, from: entity.p, model: entity.a }],
+        spots: [{ model: entity.a, pos: entity.p }],
+        original: { pos: entity.p, rot: entity.r },
+        new: d.action === 'move' ? d.new : null,
+        hideRadius: 0.5,
+        by: GetPlayerName(src)
+    }
+    KKCT.decisions.addEntity(decision)
+    broadcastDecisions()
+    emitNet('kk_ct:ymapEditQueued', src, decision)
+    emitNet('kk_ct:notice', src, `Queued ${d.action} for ${decision.archetype} in ${entry.resource}. Run Resolve to edit the YMAP file.`)
+    emitNet('kk_ct:decisionsMeta', src, KKCT.decisions.meta())
+    pushState(src)
+})
 
 onNet('kk_ct:getState', () => {
     const src = source

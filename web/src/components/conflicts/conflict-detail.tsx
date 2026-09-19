@@ -1,5 +1,6 @@
 import { ArrowsOutCardinal, Check, Crosshair, Cube, Eye, EyeSlash, Swap, Trash, Warning, X } from '@phosphor-icons/react'
 import { CollisionBounds } from '@/components/collision/collision-bounds'
+import { YmapEditor } from '@/components/ymap/ymap-editor'
 import { MergePanel } from '@/components/conflicts/merge-panel'
 import { cn, OCCL_DOTS } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
@@ -48,7 +49,8 @@ export function ConflictDetail() {
     const keepOriginal = keepsOriginal(c, preview)
     const editableCollision = c.kind === 'collision-file'
     const editableOcclusion = c.kind === 'occlusion-file'
-    const editableFile = editableCollision || editableOcclusion
+    const editableYmap = c.kind === 'ymap-file'
+    const editableFile = editableCollision || editableOcclusion || editableYmap
     const tabbed = c.cat === 'coll' && !editableCollision
     const tab = editableCollision ? 'collision' : tabbed ? detailTab : 'conflict'
 
@@ -156,6 +158,8 @@ export function ConflictDetail() {
                         ))}
                     </div>
                 )}
+
+                {editableYmap && <YmapEditor c={c} />}
 
                 {pvLabels && (
                     <div className="mx-3 mt-2.5">

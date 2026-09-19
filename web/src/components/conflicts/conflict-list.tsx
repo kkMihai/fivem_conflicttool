@@ -91,7 +91,7 @@ export function ConflictList() {
     const hiddenKindList = kinds.filter(([k]) => hiddenKinds[k])
     const counts = scanMeta?.counts
     const editableCounts = conflicts.reduce((sum, conflict) => {
-        if ((conflict.kind !== 'collision-file' && conflict.kind !== 'occlusion-file') || conflict.ignored || conflict.hidden) return sum
+        if ((conflict.kind !== 'collision-file' && conflict.kind !== 'occlusion-file' && conflict.kind !== 'ymap-file') || conflict.ignored || conflict.hidden) return sum
         sum.all++
         sum[conflict.cat]++
         return sum

@@ -210,7 +210,8 @@ local function probe()
         end
     end
     local marker, markerT = pickMarker(origin, dir, range)
-    return marker, model, markerT, origin, dir, range, hit and coords or nil
+    local entityPos = model ~= 0 and entity ~= 0 and GetEntityCoords(entity) or nil
+    return marker, model, markerT, origin, dir, range, hit and coords or nil, entityPos
 end
 
 local function cursorNorm()
@@ -223,13 +224,13 @@ end
 
 function PK.Click()
     if not CT.open or CT.mode == 'transform' or not CT.picking then return end
-    local target, model, _, _, _, _, hitPos = probe()
+    local target, model, _, _, _, _, hitPos, entityPos = probe()
     if target then
         SendNUIMessage({ action = 'worldSelect', data = { id = target.id, model = model ~= 0 and model or nil } })
         return
     end
     if model ~= 0 then
-        SendNUIMessage({ action = 'worldSelect', data = { model = model, hit = hitPos and { hitPos.x, hitPos.y, hitPos.z } or nil } })
+        SendNUIMessage({ action = 'worldSelect', data = { model = model, hit = hitPos and { hitPos.x, hitPos.y, hitPos.z } or nil, pos = entityPos and { entityPos.x, entityPos.y, entityPos.z } or nil } })
         return
     end
     SendNUIMessage({ action = 'closeContext' })

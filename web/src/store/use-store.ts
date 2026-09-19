@@ -31,6 +31,7 @@ interface StoreState {
     resourceFilter: string | null
     itemFilter: ItemFilter
     selectedId: string | null
+    ymapPickIndex: number | null
     hoverModel: number | null
     hoverId: string | null
     picking: boolean
@@ -168,6 +169,7 @@ export const useStore = create<StoreState>((set, get) => ({
     resourceFilter: null,
     itemFilter: 'conflicts',
     selectedId: null,
+    ymapPickIndex: null,
     hoverModel: null,
     hoverId: null,
     picking: true,
@@ -630,7 +632,7 @@ export const useStore = create<StoreState>((set, get) => ({
         const { conflicts, tab, search, showVanilla, showIgnored, showHidden, onlyNew, resourceFilter, itemFilter, hiddenExts, hiddenKinds } = get()
         const q = search.trim().toLowerCase()
         return conflicts.filter(c => {
-            const editable = c.kind === 'collision-file' || c.kind === 'occlusion-file'
+            const editable = c.kind === 'collision-file' || c.kind === 'occlusion-file' || c.kind === 'ymap-file'
             if (itemFilter === 'conflicts' && editable) return false
             if (itemFilter === 'editable' && !editable) return false
             if (hiddenExts[extOf(c.file)]) return false
@@ -650,7 +652,7 @@ export const useStore = create<StoreState>((set, get) => ({
         if (get().preview) {
             fetchNui('previewEntity', { op: 'reset' })
         }
-        set({ selectedId: id, preview: null, ctxMenu: null, mergePreview: null })
+        set({ selectedId: id, ymapPickIndex: null, preview: null, ctxMenu: null, mergePreview: null })
         if (!id) {
             fetchNui('selectConflict', { id: null })
             fetchNui('collisionBox', { on: false })
@@ -826,6 +828,19 @@ export const useStore = create<StoreState>((set, get) => ({
         const result = await fetchNui<any>('endTransform', { commit })
         if (commit && t) {
             if (result && result.pos) {
+                if (t.ymap) {
+                    fetchNui('editYmapProp', {
+                        action: 'move',
+                        resource: t.ymap.resource,
+                        rel: t.ymap.rel,
+                        index: t.ymap.entity.index,
+                        model: t.ymap.entity.model,
+                        pos: t.ymap.entity.pos,
+                        new: { pos: result.pos, rot: result.quat }
+                    })
+                    get().pushHistory({ id: t.conflictId, label: t.name, action: 'move' })
+                    return
+                }
                 const c = get().conflicts.find(x => x.id === t.conflictId)
                 if (c) {
                     get().decideEntity(c, 'move', { new: { pos: result.pos, rot: result.quat } })

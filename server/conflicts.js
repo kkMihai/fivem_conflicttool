@@ -646,6 +646,45 @@ KKCT.conflicts = (() => {
             }
         }
 
+        for (const [key, entries] of index) {
+            if (!key.endsWith('.ymap')) continue
+            const editable = loadOrder(entries).filter(e => e.inStream && !e.parseError && e.parsed && e.parsed.entities.some(entity => !entity.mlo))
+            for (const entry of editable) {
+                const count = entry.parsed.entities.filter(entity => !entity.mlo).length
+                out.push({
+                    id: nid('c_edit_ymap'),
+                    key: `edit-ymap|${key}|${entry.resource}|${entry.rel}`,
+                    cat: 'prop',
+                    sev: 'cosmetic',
+                    kind: 'ymap-file',
+                    title: key,
+                    sub: `${entry.resource} · editable streamed props`,
+                    file: key,
+                    badges: [`${count} editable ${count === 1 ? 'prop' : 'props'}`],
+                    vanilla: vanillaSet ? vanillaSet.has(key) : false,
+                    pos: null,
+                    autoRes: null,
+                    resources: [{
+                        name: entry.resource,
+                        rel: entry.rel,
+                        size: entry.size,
+                        sha1: short(entry.sha1),
+                        fullSha1: entry.sha1,
+                        status: 'streamed · editable'
+                    }],
+                    entity: null,
+                    target: null,
+                    near: null,
+                    boxes: null,
+                    explain: {
+                        summary: `${key} contains ${count} editable streamed props in ${entry.resource}.`,
+                        note: 'Pick a prop below to move or remove it. Resolve writes the edit to this file.'
+                    },
+                    suggested: { action: 'none', losers: [] }
+                })
+            }
+        }
+
         const kindRank = { vehicle: 0, ped: 1, weapon: 2, map: 3, prop: 4, other: 5 }
         for (const c of out) {
             let best = 'other'
