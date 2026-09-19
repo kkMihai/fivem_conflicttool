@@ -347,18 +347,27 @@ export default function App() {
         const a = s.applyState
         useStore.setState({ applyState: { ...(a ?? { step: 0, total: 0, label: '' }), open: true, done: true, result, step: 0, total: 0, label: '' } })
         const ids: string[] = result?.conflictIds ?? []
-        if (!ids.length) return
+        const failedIds: string[] = result?.failedConflictIds ?? []
+        const errorCount = result?.errors?.length ?? 0
         const done = new Set(ids)
+        const failed = new Set(failedIds)
         const resolved = { ...s.resolved }
         const points: number[][] = []
         for (const c of s.conflicts) {
-            if (!done.has(c.id)) continue
-            resolved[c.id] = 'applied · fixed on disk'
-            if (c.pos) points.push(c.pos)
+            if (failed.has(c.id)) resolved[c.id] = 'file edit failed · still queued'
+            else if (done.has(c.id)) {
+                resolved[c.id] = 'applied · fixed on disk'
+                if (c.pos) points.push(c.pos)
+            }
         }
         useStore.setState({ resolved })
         useStore.getState().pushMarkers()
         if (points.length) fetchNui('resolvedPulse', { points })
+        if (errorCount > 0) {
+            useStore.getState().setNotice(`${errorCount} file edit${errorCount === 1 ? '' : 's'} failed. Check Resolve details.`)
+            return
+        }
+        if (!ids.length) return
         const n = result?.summary?.files ?? ids.length
         useStore.getState().setNotice(
             `Resolved ${ids.length} conflict${ids.length === 1 ? '' : 's'} across ${n} file${n === 1 ? '' : 's'}. Their markers are cleared.`,

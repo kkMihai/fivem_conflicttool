@@ -10,18 +10,24 @@ export function ApplyModal() {
     if (!applyState) return null
     const pct = applyState.total > 0 ? (applyState.step / applyState.total) * 100 : applyState.done ? 100 : 10
     const r = applyState.result
+    const errorCount = r?.errors?.length ?? 0
+    const appliedCount = (r?.summary?.files ?? r?.summary?.restored ?? 0) + (r?.conflictIds?.length ?? 0)
+    const title = errorCount > 0 ? (appliedCount > 0 ? 'Some changes failed' : 'Resolve failed') : 'Changes applied'
+    const permissionResources: string[] = r?.permissionResources ?? []
 
     return (
         <Dialog open={applyState.open} onOpenChange={v => !v && applyState.done && useStore.setState({ applyState: null })}>
             <DialogContent className="max-w-sm">
                 <DialogHeader>
                     <DialogTitle>
-                        {applyState.done ? (
+                        {applyState.done && errorCount === 0 ? (
                             <CheckCircle className="h-4 w-4 text-cat-vanilla" aria-hidden="true" />
+                        ) : applyState.done ? (
+                            <Warning className="h-4 w-4 text-destructive" aria-hidden="true" />
                         ) : (
                             <CircleNotch className="h-4 w-4 animate-spin text-primary" aria-hidden="true" />
                         )}
-                        {applyState.done ? 'Changes applied' : 'Applying changes…'}
+                        {applyState.done ? title : 'Applying changes…'}
                     </DialogTitle>
                 </DialogHeader>
                 {!applyState.done ? (
@@ -60,9 +66,10 @@ export function ApplyModal() {
                             <div className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-3xs text-destructive">
                                 {r.errors.slice(0, 4).map((e: any, i: number) => (
                                     <div key={i}>
-                                        {e.file}: {e.msg}
+                                        {e.resource && `${e.resource}/`}{e.file}: {e.msg}
                                     </div>
                                 ))}
+                                {errorCount > 4 && <div className="mt-1">{errorCount - 4} more errors in server log</div>}
                             </div>
                         )}
                         {r?.restartRequired && (
@@ -73,11 +80,14 @@ export function ApplyModal() {
                         )}
                         {r?.permissionHint && (
                             <div className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-3xs text-destructive">
-                                <div className="font-bold">The server blocked file moves.</div>
-                                <div className="mt-1">Add this line to server.cfg and restart:</div>
-                                <div className="mt-1 select-text rounded bg-background px-1.5 py-1 font-mono">
-                                    add_unsafe_child_process_permission fivem_conflicttool
+                                <div className="font-bold">The server cannot write these resource files.</div>
+                                <div className="mt-1">Add write permission in server.cfg, then restart the server:</div>
+                                <div className="mt-1 select-text rounded bg-background px-1.5 py-1 font-mono whitespace-pre-wrap break-all">
+                                    {permissionResources.length > 0
+                                        ? permissionResources.map(resource => `add_filesystem_permission fivem_conflicttool write ${resource}`).join('\n')
+                                        : 'add_unsafe_child_process_permission fivem_conflicttool'}
                                 </div>
+                                <div className="mt-1">Failed edits stay queued. Run Resolve again after restart.</div>
                             </div>
                         )}
                         <div className="grid grid-cols-2 gap-1.5">

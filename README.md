@@ -167,6 +167,8 @@ Changing files inside other resources requires a filesystem grant. Either of the
 - `add_unsafe_child_process_permission fivem_conflicttool`, which covers every resource in one line.
 - `add_filesystem_permission fivem_conflicttool write <resource>` lines. Every scan writes a ready-made list to `fivem_conflicttool/data/fs-permissions.cfg`, which can be loaded with `exec ./resources/[standalone]/fivem_conflicttool/data/fs-permissions.cfg`. Run one scan, then restart so the grants load.
 
+If Resolve cannot write a resource file, it shows the affected resource and the exact `add_filesystem_permission` line. Failed edits stay queued. Add the line to `server.cfg`, restart the server, then run Resolve again.
+
 ## Settings
 
 Optional convars, set before the resource starts:
