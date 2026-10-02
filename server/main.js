@@ -1,19 +1,35 @@
 (() => {
+let ready = false
+const allowed = src => ready && IsPlayerAceAllowed(String(src), 'fivem_conflicttool')
+
+onNet('kk_ct:auth', (requestId = null) => {
+    const src = source
+    if (!IsPlayerAceAllowed(String(src), 'fivem_conflicttool')) {
+        emitNet('kk_ct:authResult', src, false, 'denied', requestId)
+        return
+    }
+    emitNet('kk_ct:authResult', src, ready, ready ? null : 'unavailable', requestId)
+})
+
 const fs = require('fs')
 const path = require('path')
 const zlib = require('zlib')
 
-const ROOT = GetResourcePath(GetCurrentResourceName()).replace(/\//g, path.sep)
-
-fs.mkdirSync(path.join(ROOT, 'data'), { recursive: true })
-KKCT.decisions.init(ROOT)
-KKCT.ignores.init(ROOT)
-KKCT.scanner.init(ROOT)
-KKCT.resolver.init(ROOT)
-KKCT.names.loadDictionary(ROOT)
-KKCT.conflicts.loadVanilla(ROOT)
-
-const allowed = src => IsPlayerAceAllowed(String(src), 'fivem_conflicttool')
+let ROOT
+try {
+    ROOT = GetResourcePath(GetCurrentResourceName()).replace(/\//g, path.sep)
+    fs.mkdirSync(path.join(ROOT, 'data'), { recursive: true })
+    KKCT.decisions.init(ROOT)
+    KKCT.ignores.init(ROOT)
+    KKCT.scanner.init(ROOT)
+    KKCT.resolver.init(ROOT)
+    KKCT.names.loadDictionary(ROOT)
+    KKCT.conflicts.loadVanilla(ROOT)
+    ready = true
+} catch (e) {
+    console.log(`[fivem_conflicttool] initialization failed: ${e.stack || e.message}`)
+    return
+}
 
 function stripForClient(scan) {
     if (!scan) return null
@@ -111,11 +127,6 @@ function pushState(src) {
         version: KKCT.version.snapshot()
     })
 }
-
-onNet('kk_ct:auth', () => {
-    const src = source
-    emitNet('kk_ct:authResult', src, allowed(src))
-})
 
 onNet('kk_ct:checkUpdate', () => {
     const src = source
