@@ -12,7 +12,7 @@ import { ScanProgress } from '@/components/overlay/scan-progress'
 import { Legend } from '@/components/overlay/legend'
 import { ContextMenu } from '@/components/overlay/context-menu'
 import { Kbd } from '@/components/ui/kbd'
-import { decodeChunks, fetchNui, isEnvBrowser, useNuiEvent } from '@/lib/nui'
+import { decodeChunks, fetchNui, isEnvBrowser, startNuiReadiness, useNuiEvent } from '@/lib/nui'
 import { createUiRectsSender, readUiRects } from '@/lib/ui-rects'
 import { useStore } from '@/store/use-store'
 import type { CollEditLive, CollVerify, CollisionBound, CollisionData, Conflict, FaceDataInfo, FaceSelState, MergePreview, ScanPayload, ToolState, VersionInfo } from '@/types'
@@ -37,10 +37,6 @@ export default function App() {
         (hoverModel !== null ? conflicts.find(c => c.entity && c.entity.model === hoverModel)?.entity?.name : null) ??
         (hoverId ? conflicts.find(c => c.id === hoverId)?.title ?? null : null)
     const chunks = useRef<{ parts: string[]; received: number; total: number }>({ parts: [], received: 0, total: 0 })
-
-    useEffect(() => {
-        fetchNui('uiReady')
-    }, [])
 
     useEffect(() => {
         if (isEnvBrowser()) return
@@ -373,6 +369,11 @@ export default function App() {
     useNuiEvent<any>('decisionsMeta', meta => useStore.setState({ decisions: meta }))
 
     useNuiEvent<{ count: number }>('collisionGeom', d => useStore.setState({ collisionTris: d.count }))
+
+    useEffect(() => {
+        if (isEnvBrowser()) return
+        return startNuiReadiness()
+    }, [])
 
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {

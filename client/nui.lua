@@ -1,14 +1,36 @@
+local uiSession
+
 local function nuiSend(action, data)
     SendNUIMessage({ action = action, data = data })
 end
 
 CT.NuiSend = nuiSend
+CT.uiReady = false
 
-RegisterNUICallback('uiReady', function(_, cb)
-    cb(true)
+RegisterNUICallback('uiReady', function(data, cb)
+    uiSession = type(data) == 'table' and data.session or nil
+    CT.uiReady = true
+    nuiSend('setVisible', CT.open == true)
     if CT.open then
         TriggerServerEvent('kk_ct:getState')
     end
+    cb(true)
+end)
+
+RegisterNUICallback('uiUnloaded', function(data, cb)
+    if type(data) ~= 'table' or data.session ~= uiSession then
+        cb(false)
+        return
+    end
+    CT.uiReady = false
+    CT.uiRects = {}
+    CT.uiW = 0
+    CT.uiH = 0
+    CT.typing = false
+    CT.camLook = false
+    CT.overUi = CT.open == true
+    CT.ApplyFocus()
+    cb(true)
 end)
 
 RegisterNUICallback('close', function(_, cb)
