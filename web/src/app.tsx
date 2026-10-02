@@ -13,7 +13,7 @@ import { Legend } from '@/components/overlay/legend'
 import { ContextMenu } from '@/components/overlay/context-menu'
 import { Kbd } from '@/components/ui/kbd'
 import { decodeChunks, fetchNui, isEnvBrowser, useNuiEvent } from '@/lib/nui'
-import { readUiRects } from '@/lib/ui-rects'
+import { createUiRectsSender, readUiRects } from '@/lib/ui-rects'
 import { useStore } from '@/store/use-store'
 import type { CollEditLive, CollVerify, CollisionBound, CollisionData, Conflict, FaceDataInfo, FaceSelState, MergePreview, ScanPayload, ToolState, VersionInfo } from '@/types'
 import { CheckCircle, CursorClick, Warning } from '@phosphor-icons/react'
@@ -62,13 +62,10 @@ export default function App() {
 
     useEffect(() => {
         if (isEnvBrowser()) return
-        let last = ''
+        const post = createUiRectsSender(payload => fetchNui('uiRects', payload))
         const send = () => {
             const payload = readUiRects(document, window)
-            const key = JSON.stringify(payload)
-            if (key === last) return
-            last = key
-            fetchNui('uiRects', payload)
+            void post(payload)
         }
         send()
         const id = window.setInterval(send, 200)
@@ -77,7 +74,7 @@ export default function App() {
             window.clearInterval(id)
             window.removeEventListener('resize', send)
         }
-    }, [])
+    }, [visible, uiHidden])
 
     useNuiEvent<boolean>('setVisible', v => {
         useStore.setState({ visible: v })

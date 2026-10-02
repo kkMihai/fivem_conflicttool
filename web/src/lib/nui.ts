@@ -10,15 +10,22 @@ export async function fetchNui<T = unknown>(event: string, data?: unknown): Prom
     if (isEnvBrowser()) {
         return null
     }
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => controller.abort(), 5000)
     try {
         const resp = await fetch(`https://${resourceName}/${event}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json; charset=UTF-8' },
-            body: JSON.stringify(data ?? {})
+            body: JSON.stringify(data ?? {}),
+            signal: controller.signal
         })
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
         return (await resp.json()) as T
-    } catch {
+    } catch (error) {
+        console.error(`[${resourceName}] NUI request ${event} failed`, error)
         return null
+    } finally {
+        window.clearTimeout(timeout)
     }
 }
 

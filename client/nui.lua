@@ -479,11 +479,28 @@ RegisterNUICallback('typing', function(data, cb)
 end)
 
 RegisterNUICallback('uiRects', function(data, cb)
+    local function finite(n)
+        return type(n) == 'number' and n == n and n > -math.huge and n < math.huge
+    end
+    if type(data) ~= 'table' or not finite(data.w) or not finite(data.h) or data.w <= 0 or data.h <= 0
+        or type(data.rects) ~= 'table' or #data.rects > 256 then
+        cb(false)
+        return
+    end
+    local rects = {}
+    for i = 1, #data.rects do
+        local r = data.rects[i]
+        if type(r) ~= 'table' or #r ~= 4 or not finite(r[1]) or not finite(r[2])
+            or not finite(r[3]) or not finite(r[4]) or r[1] > r[3] or r[2] > r[4] then
+            cb(false)
+            return
+        end
+        rects[i] = { r[1], r[2], r[3], r[4] }
+    end
+    CT.uiRects = rects
+    CT.uiW = data.w
+    CT.uiH = data.h
     cb(true)
-    if not data then return end
-    CT.uiRects = data.rects or {}
-    CT.uiW = data.w or 0
-    CT.uiH = data.h or 0
 end)
 
 RegisterNUICallback('worldVisuals', function(data, cb)
