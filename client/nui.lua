@@ -30,6 +30,7 @@ RegisterNUICallback('uiUnloaded', function(data, cb)
     CT.camLook = false
     CT.overUi = CT.open == true
     CT.ApplyFocus()
+    if CT.open then CT.WaitForUi() end
     cb(true)
 end)
 

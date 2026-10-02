@@ -1,3 +1,16 @@
+local pendingAuth, openSession, pendingUi
+local authSequence = 0
+local authTimeout = 10000
+local uiTimeout = 10000
+
+local function notifyFailure(message, context)
+    print(('[%s] /conflicttool %s'):format(GetCurrentResourceName(), context))
+    BeginTextCommandThefeedPost('STRING')
+    AddTextComponentSubstringPlayerName(message)
+    EndTextCommandThefeedPostTicker(false, true)
+    TriggerEvent('chat:addMessage', { color = { 239, 68, 68 }, args = { 'fivem_conflicttool', message } })
+end
+
 local function setFocus(on, keepInput)
     SetNuiFocus(on, on)
     SetNuiFocusKeepInput(keepInput or false)
@@ -68,8 +81,23 @@ end)
 
 local radarWasVisible = true
 
+function CT.WaitForUi()
+    if not CT.open then return end
+    local session = openSession
+    local wait = {}
+    pendingUi = wait
+    SetTimeout(uiTimeout, function()
+        if pendingUi ~= wait or openSession ~= session or not CT.open or CT.uiReady then return end
+        CT.Close()
+        notifyFailure('Conflict tool UI did not load. Check F8.', 'UI load timed out after ' .. uiTimeout .. ' ms; check NUI errors in F8')
+    end)
+end
+
 function CT.Open()
+    pendingAuth = nil
     if CT.open then return end
+    local session = {}
+    openSession = session
     CT.open = true
     radarWasVisible = not IsRadarHidden()
     DisplayRadar(false)
@@ -79,7 +107,9 @@ function CT.Open()
     CT.picking = true
     CT.NuiSend('setVisible', true)
     CT.ApplyFocus()
+    CT.WaitForUi()
     CreateThread(function()
+        if openSession ~= session or not CT.open then return end
         local ok, err = pcall(CT.Freecam.Start)
         if not ok then
             print('[fivem_conflicttool] freecam error: ' .. tostring(err))
@@ -89,6 +119,9 @@ function CT.Open()
 end
 
 function CT.Close()
+    pendingAuth = nil
+    openSession = nil
+    pendingUi = nil
     if not CT.open then return end
     CT.open = false
     DisplayRadar(radarWasVisible)
@@ -225,18 +258,34 @@ end)
 RegisterCommand('conflicttool', function()
     if CT.open then
         CT.Close()
-    else
-        TriggerServerEvent('kk_ct:auth')
+    elseif not pendingAuth then
+        authSequence = authSequence + 1
+        local request = { id = authSequence }
+        pendingAuth = request
+        SetTimeout(authTimeout, function()
+            if pendingAuth ~= request then return end
+            pendingAuth = nil
+            notifyFailure('Conflict tool did not respond. Try /conflicttool again.',
+                'authorization timed out after ' .. authTimeout .. ' ms (request ' .. request.id .. '); check server console')
+        end)
+        TriggerServerEvent('kk_ct:auth', request.id)
     end
 end, false)
 
 TriggerEvent('chat:addSuggestion', '/conflicttool', 'Open the map conflict tool')
 
-RegisterNetEvent('kk_ct:authResult', function(ok)
-    if ok then
+RegisterNetEvent('kk_ct:authResult', function(ok, reason, requestId)
+    if not pendingAuth or (requestId ~= nil and requestId ~= pendingAuth.id) then return end
+    local request = pendingAuth
+    pendingAuth = nil
+    if ok == true then
         CT.Open()
+    elseif reason == 'unavailable' then
+        notifyFailure('Conflict tool unavailable. Server setup failed. Check server console.',
+            'authorization unavailable (request ' .. request.id .. '): server initialization failed; check server console')
     else
-        TriggerEvent('chat:addMessage', { color = { 239, 68, 68 }, args = { 'fivem_conflicttool', 'No permission (ace fivem_conflicttool)' } })
+        notifyFailure('No permission (ace fivem_conflicttool)',
+            'authorization denied (request ' .. request.id .. '): ace fivem_conflicttool is required')
     end
 end)
 
@@ -266,6 +315,9 @@ end)
 
 AddEventHandler('onResourceStop', function(res)
     if res ~= GetCurrentResourceName() then return end
+    pendingAuth = nil
+    openSession = nil
+    pendingUi = nil
     setCursorMode(false)
     setFocus(false, false)
     if CT.open then

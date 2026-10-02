@@ -1,7 +1,9 @@
 local callbacks, messages, requests = {}, {}, {}
 local focusUpdates = 0
+local waits = 0
 CT = { open = false, uiRects = {}, uiW = 0, uiH = 0 }
 CT.ApplyFocus = function() focusUpdates = focusUpdates + 1 end
+CT.WaitForUi = function() waits = waits + 1 end
 RegisterNUICallback = function(name, callback) callbacks[name] = callback end
 RegisterNetEvent = function() end
 SendNUIMessage = function(message) messages[#messages + 1] = message end
@@ -30,9 +32,11 @@ CT.typing, CT.camLook, CT.overUi = true, true, false
 callbacks.uiUnloaded({ session = 'first' }, function(value) assert(value == true) end)
 assert(not CT.uiReady and CT.uiW == 0 and CT.uiH == 0 and #CT.uiRects == 0, 'unload kept stale geometry')
 assert(not CT.typing and not CT.camLook and CT.overUi and focusUpdates == 1, 'unload did not restore UI input')
+assert(waits == 1, 'unload did not rearm the UI loading timeout')
 ready('second', true)
 callbacks.uiUnloaded({ session = 'first' }, function(value) assert(value == false) end)
 assert(CT.uiReady, 'late unload invalidated the new page')
+assert(waits == 1, 'stale unload restarted the loading timeout')
 CT.open = false
 ready('second', false)
 assert(messages[#messages].data == false, 'closed visibility was not replayed')
