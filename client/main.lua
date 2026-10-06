@@ -12,6 +12,7 @@ local function notifyFailure(message, context)
 end
 
 local function setFocus(on, keepInput)
+    if not on then SetNuiFocusKeepInput(false) end
     SetNuiFocus(on, on)
     SetNuiFocusKeepInput(keepInput or false)
 end
@@ -32,6 +33,7 @@ function CT.ApplyFocus()
         setFocus(false, false)
         return
     end
+    if CT.typing then CT.camLook = false end
     if CT.camLook then
         CT.overUi = false
         setCursorMode(false)
@@ -40,14 +42,14 @@ function CT.ApplyFocus()
     end
     if CT.typing or CT.overUi then
         setFocus(true, not CT.typing)
-        setCursorMode(false)
+        setCursorMode(not CT.typing)
         if CT.typing then
             CT.Freecam.ClearMove()
         end
         return
     end
-    setCursorMode(true)
     setFocus(false, false)
+    setCursorMode(true)
 end
 
 CreateThread(function()
@@ -295,7 +297,7 @@ CreateThread(function()
             Wait(0)
             DisplayRadar(false)
             DisableAllControlActions(0)
-            EnableControlAction(0, 245, true)
+            if not CT.typing then EnableControlAction(0, 245, true) end
             if not CT.typing and IsDisabledControlPressed(0, 36) and IsDisabledControlJustPressed(0, 20) then
                 CT.NuiSend('keybind', { key = 'undo' })
             end

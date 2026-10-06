@@ -19,6 +19,7 @@ end
 
 local function bindHold(name, desc, key, field)
     RegisterCommand('+' .. name, function()
+        if not CT.open or CT.typing then return end
         FC.move[field] = true
     end, false)
     RegisterCommand('-' .. name, function()
@@ -59,6 +60,7 @@ function FC.Start(pos, rot)
         if pos then FC.SetTo(pos) end
         return
     end
+    FC.ClearMove()
     local ped = PlayerPedId()
     FC.pos = pos or GetGameplayCamCoord()
     local gr = GetGameplayCamRot(2)
@@ -74,6 +76,7 @@ function FC.Start(pos, rot)
 end
 
 function FC.Stop()
+    FC.ClearMove()
     if not FC.active then return end
     FC.active = false
     local ped = PlayerPedId()
@@ -123,7 +126,9 @@ function FC.Loop()
     FC.lastFocus = 0
     while FC.active do
         Wait(0)
-        do
+        if CT.typing then
+            FC.ClearMove()
+        else
             if CT.camLook then
                 local lookX = GetDisabledControlNormal(0, 1)
                 local lookY = GetDisabledControlNormal(0, 2)
